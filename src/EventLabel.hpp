@@ -125,6 +125,11 @@ public:
 		EL_DskOpen,
 		EL_RCULockLKMM,
 		EL_RCUUnlockLKMM,
+		EL_ChanelAccesBegin,
+		EL_ChannelOpen,
+		EL_ChannelSend,
+		EL_ChannelReceive,
+		EL_ChanelAccesEnd,
 	};
 
 protected:
@@ -138,6 +143,7 @@ protected:
 		: kind(k), stamp(0), ordering(o), position(p) {}
 
 public:
+	typedef int Channel;
 
 	/* Returns the discriminator of this object */
 	EventLabelKind getKind() const { return kind; }
@@ -580,6 +586,174 @@ private:
 
 	/* Whether was mo-maximal when added */
 	bool maximal = true;
+};
+
+/*******************************************************************************
+ **                       ChannelAccessLabel Class (Abstract)
+ ******************************************************************************/
+
+class ChannelAccessLabel : public EventLabel {
+
+protected:
+	ChannelAccessLabel(EventLabelKind k, unsigned int st, llvm::AtomicOrdering ord,
+		       Event pos, Channel ch)
+		: EventLabel(k, st, ord, pos), ch(ch) {}
+	ChannelAccessLabel(EventLabelKind k, llvm::AtomicOrdering ord,
+		       Event pos, Channel ch)
+		: EventLabel(k, ord, pos), ch(ch) {}
+
+public:
+	/* Returns the address of this access */
+	Channel getChannel() const { return ch; }
+
+
+	bool wasAddedMax() const { return maximal; }
+	void setAddedMax(bool status) { maximal = status; }
+
+
+	static bool classof(const EventLabel *lab) { return classofKind(lab->getKind()); }
+	static bool classofKind(EventLabelKind k) {
+		return k >= EL_ChanelAccesBegin && k <= EL_ChanelAccesEnd;
+	}
+
+private:
+	
+	/* The address of the accessing */
+	Channel ch;
+
+	/* Whether was mo-maximal when added */
+	bool maximal = true;
+};
+
+
+/*******************************************************************************
+ **                         ReceiveLabel Class
+ ******************************************************************************/
+
+
+class ReceiveLabel : public ChannelAccessLabel {
+
+protected:
+	friend class ExecutionGraph;
+
+protected:
+	ReceiveLabel(EventLabelKind k, unsigned int st, llvm::AtomicOrdering ord,
+		  Event pos, Channel ch, Event rf)
+		: ChannelAccessLabel(k, st, ord, pos, ch),readsFrom(rf), revisitable(true) {}
+	ReceiveLabel(EventLabelKind k, llvm::AtomicOrdering ord,
+		  Event pos, Channel ch, Event rf)
+		: ChannelAccessLabel(k, ord, pos, ch),readsFrom(rf), revisitable(true) {}
+
+public:
+	ReceiveLabel(unsigned int st, llvm::AtomicOrdering ord, Event pos, Channel ch,
+		 Event rf = Event::getBottom())
+		: ReceiveLabel(EL_ChannelReceive, st, ord, pos, ch, rf) {}
+	ReceiveLabel(llvm::AtomicOrdering ord, Event pos, Channel ch,
+		  Event rf = Event::getBottom())
+		: ReceiveLabel(EL_ChannelReceive, ord, pos, ch, rf) {}
+
+	template<typename... Ts>
+	static std::unique_ptr<ReceiveLabel> create(Ts&&... params) {
+		return std::make_unique<ReceiveLabel>(std::forward<Ts>(params)...);
+	}
+
+	/* Returns the position of the send */
+	Event getRf() const { return readsFrom; }
+
+	/* Returns true if this receive can be revisited */
+	bool isRevisitable() const { return revisitable; }
+
+	/* Makes the relevant receive revisitable/non-revisitable. The
+	 * execution graph is responsible for making such changes */
+	void setRevisitStatus(bool status) { revisitable = status; }
+
+
+	std::unique_ptr<EventLabel> clone() const override {
+		return std::make_unique<ReceiveLabel>(*this);
+	}
+
+	static bool classof(const EventLabel *lab) { return classofKind(lab->getKind()); }
+	static bool classofKind(EventLabelKind k) {
+		return k == EL_ChannelReceive;
+	}
+
+private:
+	/* Changes the reads-from edge for this label. This should only
+	 * be called from the execution graph to update other relevant
+	 * information as well */
+	void setRf(Event rf) { readsFrom = rf; }
+
+	/* Position of the send it is reading from in the graph */
+	Event readsFrom;
+
+	/* Revisitability status */
+	bool revisitable;
+
+};
+
+
+/*******************************************************************************
+ **                         SendLabel Class
+ ******************************************************************************/
+
+
+class SendLabel : public ChannelAccessLabel {
+
+protected:
+	friend class ExecutionGraph;
+
+protected:
+	SendLabel(EventLabelKind k, unsigned int st, llvm::AtomicOrdering ord,
+		   Event pos, Channel ch, int val)
+		: ChannelAccessLabel(k, st, ord, pos, ch), value(val) {}
+	SendLabel(EventLabelKind k, llvm::AtomicOrdering ord, Event pos, Channel ch,
+			 int val)
+		: ChannelAccessLabel(k, ord, pos, ch), value(val){}
+
+public:
+	SendLabel(unsigned int st, llvm::AtomicOrdering ord, Event pos, Channel ch, int val)
+		: SendLabel(EL_ChannelSend, st, ord, pos, ch, val) {}
+	SendLabel(llvm::AtomicOrdering ord, Event pos, Channel ch, int val)
+		: SendLabel(EL_ChannelSend, ord, pos, ch, val) {}
+
+	template<typename... Ts>
+	static std::unique_ptr<SendLabel> create(Ts&&... params) {
+		return std::make_unique<SendLabel>(std::forward<Ts>(params)...);
+	}
+
+	/* Getter/setter for the  value */
+	int getVal() const { return value; }
+	void setVal(int v) { value = v; }
+
+	/* Returns receive reading from this send */
+	const Event getReader() const { return receiver; }
+
+	std::unique_ptr<EventLabel> clone() const override {
+		return std::make_unique<SendLabel>(*this);
+	}
+
+	static bool classof(const EventLabel *lab) { return classofKind(lab->getKind()); }
+	static bool classofKind(EventLabelKind k) {
+		return k == EL_ChannelSend;
+	}
+
+private:
+	/* Adds receiver reading from this send */
+	void addReader(Event r) {
+		receiver = r;
+	}
+
+	/* Removes receiver */
+	void removeReader() {
+		receiver = Event::getBottom();
+	}
+
+	/* The value written by this label */
+	int value;
+
+	/* Receive Event reading from this send */
+	Event receiver;
+
 };
 
 

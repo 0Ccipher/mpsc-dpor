@@ -3126,6 +3126,36 @@ void Interpreter::callBarrierInit(Function *F, const std::vector<GenericValue> &
 	return;
 }
 
+void Interpreter::callChannelOpen(Function *F, const std::vector<GenericValue> &ArgVals,
+				  const std::unique_ptr<EventDeps> &specialDeps)
+{
+	Argument *firstArg = &*F->arg_begin();
+	GenericValue firstArgValue = ArgVals[0];
+	int chid = ArgVals[0].IntVal.getLimitedValue();
+	WARN("Channel Open : "+std::to_string(chid) + "\n");
+	return;
+}
+void Interpreter::callChannelSend(Function *F, const std::vector<GenericValue> &ArgVals,
+				  const std::unique_ptr<EventDeps> &specialDeps)
+{
+	Argument *firstArg = &*F->arg_begin();
+	GenericValue firstArgValue = ArgVals[0];
+	int chid = ArgVals[0].IntVal.getLimitedValue();
+	GenericValue secondArgValue = ArgVals[1];
+	int val = ArgVals[1].IntVal.getLimitedValue();
+	WARN("Channel Send : ch"+std::to_string(chid) +"-> "+std::to_string(val) + "\n");
+	return;
+}
+void Interpreter::callChannelReceive(Function *F, const std::vector<GenericValue> &ArgVals,
+				  const std::unique_ptr<EventDeps> &specialDeps)
+{
+	Argument *firstArg = &*F->arg_begin();
+	GenericValue firstArgValue = ArgVals[0];
+	int chid = ArgVals[0].IntVal.getLimitedValue();
+	// getCurThr().global_id = thr_id;
+	WARN("Channel Receive :<- ch"+std::to_string(chid) + "\n");
+	return;
+}
 void Interpreter::callBarrierWait(Function *F, const std::vector<GenericValue> &ArgVals,
 				  const std::unique_ptr<EventDeps> &specialDeps)
 {
@@ -4543,6 +4573,9 @@ void Interpreter::callInternalFunction(Function *F, const std::vector<GenericVal
 		CALL_INTERNAL_FUNCTION(RCUReadLockLKMM);
 		CALL_INTERNAL_FUNCTION(RCUReadUnlockLKMM);
 		CALL_INTERNAL_FUNCTION(SynchronizeRCULKMM);
+		CALL_INTERNAL_FUNCTION(ChannelOpen);
+		CALL_INTERNAL_FUNCTION(ChannelSend);
+		CALL_INTERNAL_FUNCTION(ChannelReceive);
 	default:
 		BUG();
 		break;

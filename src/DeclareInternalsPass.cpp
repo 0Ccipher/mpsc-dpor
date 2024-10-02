@@ -58,6 +58,9 @@ bool DeclareInternalsPass::runOnModule(Module &M)
 				    {Type::getInt1Ty(M.getContext())});
 	modified |= declareInternal(M, "__VERIFIER_faiZNE_spin_end", Type::getVoidTy(M.getContext()), {});
 	modified |= declareInternal(M, "__VERIFIER_lockZNE_spin_end", Type::getVoidTy(M.getContext()), {});
+	modified |= declareInternal(M, "__VERIFIER_ChannelOpen", Type::getVoidTy(M.getContext()), {});
+	modified |= declareInternal(M, "__VERIFIER_ChannelSend", Type::getVoidTy(M.getContext()), {});
+	modified |= declareInternal(M, "__VERIFIER_ChannelReceive", Type::getVoidTy(M.getContext()), {});
 	return modified;
 }
 

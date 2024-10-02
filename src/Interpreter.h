@@ -770,6 +770,9 @@ private:  // Helper functions
   DECLARE_CUSTOM_OPCODE(RCUReadLockLKMM);
   DECLARE_CUSTOM_OPCODE(RCUReadUnlockLKMM);
   DECLARE_CUSTOM_OPCODE(SynchronizeRCULKMM);
+  DECLARE_CUSTOM_OPCODE(ChannelOpen);
+  DECLARE_CUSTOM_OPCODE(ChannelSend);
+  DECLARE_CUSTOM_OPCODE(ChannelReceive);
 
   void callInternalFunction(Function *F, const std::vector<GenericValue> &ArgVals,
 			    const std::unique_ptr<EventDeps> &deps);
