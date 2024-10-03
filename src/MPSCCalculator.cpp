@@ -313,7 +313,7 @@ void MPSCCalculator::addSCEcos(const std::vector<Event> &fcs,
 void MPSCCalculator::calcPscRelation()
 {
 	auto &g = getGraph();
-	auto &pscRelation = g.getGlobalRelation(ExecutionGraph::RelationId::psc);
+	auto &pscRelation = g.getGlobalRelation(ExecutionGraph::RelationId::mpsc);
 
 	/* Collect all SC events (except for RMW loads) */
 	auto accesses = g.getSCs();
@@ -342,7 +342,7 @@ Calculator::CalculationResult MPSCCalculator::addPscConstraints()
 {
 	auto &g = getGraph();
 	auto &coRelation = g.getPerLocRelation(ExecutionGraph::RelationId::co);
-	auto &pscRelation = g.getGlobalRelation(ExecutionGraph::RelationId::psc);
+	auto &pscRelation = g.getGlobalRelation(ExecutionGraph::RelationId::mpsc);
 	Calculator::CalculationResult result;
 
 	if (auto *wbCoh = llvm::dyn_cast<WBCalculator>(
@@ -359,7 +359,7 @@ Calculator::CalculationResult MPSCCalculator::addPscConstraints()
 void MPSCCalculator::initCalc()
 {
 	auto &g = getGraph();
-	auto &pscRelation = g.getGlobalRelation(ExecutionGraph::RelationId::psc);
+	auto &pscRelation = g.getGlobalRelation(ExecutionGraph::RelationId::mpsc);
 
 	/* Collect all SC events (except for RMW loads) */
 	auto accesses = getGraph().getSCs();
@@ -372,7 +372,7 @@ Calculator::CalculationResult MPSCCalculator::doCalc()
 {
 	auto &g = getGraph();
 	auto &hbRelation = g.getGlobalRelation(ExecutionGraph::RelationId::hb);
-	auto &pscRelation = g.getGlobalRelation(ExecutionGraph::RelationId::psc);
+	auto &pscRelation = g.getGlobalRelation(ExecutionGraph::RelationId::mpsc);
 	auto &coRelation = g.getPerLocRelation(ExecutionGraph::RelationId::co);
 
 	hbRelation.transClosure();

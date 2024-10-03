@@ -16,7 +16,6 @@ MPSCDriver::MPSCDriver(std::shared_ptr<const Config> conf, std::unique_ptr<llvm:
 {
 	auto &g = getGraph();
 
-	/* RC11 requires the calculation of PSC */
 	g.addCalculator(std::make_unique<MPSCCalculator>(g),
 			ExecutionGraph::RelationId::mpsc, false);
 	return;
