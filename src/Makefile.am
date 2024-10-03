@@ -57,6 +57,7 @@ libgenmc_a_SOURCES = \
   MDataCollectionPass.hpp MDataCollectionPass.cpp \
   MemAccess.hpp \
   MOCalculator.hpp MOCalculator.cpp \
+  SOCalculator.hpp SOCalculator.cpp \
   ModuleID.hpp \
   ModuleInfo.cpp ModuleInfo.hpp \
   NameInfo.cpp NameInfo.hpp \
@@ -67,7 +68,9 @@ libgenmc_a_SOURCES = \
   PropagateAssumesPass.cpp PropagateAssumesPass.hpp \
   PROPCalculator.cpp PROPCalculator.hpp \
   PSCCalculator.cpp PSCCalculator.hpp \
+  MPSCCalculator.cpp MPSCCalculator.hpp \
   RC11Driver.cpp RC11Driver.hpp \
+  MPSCDriver.cpp MPSCDriver.hpp \
   RCUCalculator.cpp RCUCalculator.hpp \
   RCULinkCalculator.cpp RCULinkCalculator.hpp \
   RCUFenceCalculator.cpp RCUFenceCalculator.hpp \

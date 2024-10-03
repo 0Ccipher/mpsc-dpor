@@ -25,6 +25,7 @@
 #include "DepExecutionGraph.hpp"
 #include "LBCalculatorLAPOR.hpp"
 #include "MOCalculator.hpp"
+#include "SOCalculator.hpp"
 #include "WBCalculator.hpp"
 #include "PersistencyChecker.hpp"
 
@@ -57,6 +58,9 @@ public:
 			graph->addCalculator(
 				std::make_unique<MOCalculator>(*graph, tracksDeps),
 				ExecutionGraph::RelationId::co, true, true);
+			graph->addCalculator(
+				std::make_unique<SOCalculator>(*graph),
+				ExecutionGraph::RelationId::so, true, true);
 			break;
 		case CoherenceType::wb:
 			graph->addCalculator(

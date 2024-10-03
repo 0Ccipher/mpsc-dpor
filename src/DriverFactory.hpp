@@ -25,6 +25,7 @@
 #include "IMMDriver.hpp"
 #include "LKMMDriver.hpp"
 #include "RC11Driver.hpp"
+#include "MPSCDriver.hpp"
 #include <llvm/IR/Module.h>
 
 class DriverFactory {
@@ -49,6 +50,9 @@ class DriverFactory {
 			break;
 		case ModelType::lkmm:
 			driver = new LKMMDriver(std::move(conf), std::forward<Ts>(params)...);
+			break;
+		case ModelType::mpsc:
+			driver = new MPSCDriver(std::move(conf), std::forward<Ts>(params)...);
 			break;
 		default:
 			BUG();

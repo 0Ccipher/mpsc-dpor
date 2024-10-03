@@ -50,7 +50,8 @@ static llvm::cl::opt<ModelType>
 clModelType(llvm::cl::values(
 		    clEnumValN(ModelType::rc11, "rc11", "RC11 memory model"),
 		    clEnumValN(ModelType::imm,  "imm",  "IMM memory model"),
-		    clEnumValN(ModelType::lkmm, "lkmm", "LKMM memory model")
+		    clEnumValN(ModelType::lkmm, "lkmm", "LKMM memory model"),
+		    clEnumValN(ModelType::mpsc, "mpsc", "MPSC shared memory-message passing model")
 		    ),
 	    llvm::cl::cat(clGeneral),
 	    llvm::cl::init(ModelType::rc11),

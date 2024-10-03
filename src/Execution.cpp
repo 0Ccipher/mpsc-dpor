@@ -3143,7 +3143,10 @@ void Interpreter::callChannelSend(Function *F, const std::vector<GenericValue> &
 	int chid = ArgVals[0].IntVal.getLimitedValue();
 	GenericValue secondArgValue = ArgVals[1];
 	int val = ArgVals[1].IntVal.getLimitedValue();
-	WARN("Channel Send : ch"+std::to_string(chid) +"-> "+std::to_string(val) + "\n");
+	// WARN("Channel Send : ch"+std::to_string(chid) +"-> "+std::to_string(val) + "\n");
+	driver->visitSend(SendLabel::create(AtomicOrdering::NotAtomic, nextPos(),
+						      chid, val), &*specialDeps);
+
 	return;
 }
 void Interpreter::callChannelReceive(Function *F, const std::vector<GenericValue> &ArgVals,
@@ -3152,8 +3155,8 @@ void Interpreter::callChannelReceive(Function *F, const std::vector<GenericValue
 	Argument *firstArg = &*F->arg_begin();
 	GenericValue firstArgValue = ArgVals[0];
 	int chid = ArgVals[0].IntVal.getLimitedValue();
-	// getCurThr().global_id = thr_id;
-	WARN("Channel Receive :<- ch"+std::to_string(chid) + "\n");
+	// WARN("Channel Receive :<- ch"+std::to_string(chid) + "\n");
+	driver->visitReceive(ReceiveLabel::create(AtomicOrdering::SequentiallyConsistent, nextPos(), chid), &*specialDeps);
 	return;
 }
 void Interpreter::callBarrierWait(Function *F, const std::vector<GenericValue> &ArgVals,

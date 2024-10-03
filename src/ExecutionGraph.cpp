@@ -23,6 +23,7 @@
 #include "GraphIterators.hpp"
 #include "LBCalculatorLAPOR.hpp"
 #include "MOCalculator.hpp"
+#include "SOCalculator.hpp"
 #include "Parser.hpp"
 #include "WBCalculator.hpp"
 #include "PersistencyChecker.hpp"
@@ -403,6 +404,24 @@ std::vector<Event> ExecutionGraph::getRevisitable(const WriteLabel *sLab) const
 	return loads;
 }
 
+std::vector<Event> ExecutionGraph::getRevisitable(const SendLabel *sLab) const
+{
+	auto &before = getPorfBefore(sLab->getPos());
+	std::vector<Event> loads;
+
+	for (auto i = 0u; i < getNumThreads(); i++) {
+		for (auto j = before[i] + 1u; j < getThreadSize(i); j++) {
+			const EventLabel *lab = getEventLabel(Event(i, j));
+			if (auto *rLab = llvm::dyn_cast<ReceiveLabel>(lab)) {
+				if (rLab->getChannel() == sLab->getChannel() &&
+				    rLab->isRevisitable() && rLab->wasAddedMax())
+					loads.push_back(rLab->getPos());
+			}
+		}
+	}
+	return loads;
+}
+
 /* Returns a vector with all reads of a particular location reading from INIT */
 std::vector<Event> ExecutionGraph::getInitRfsAtLoc(SAddr addr) const
 {
@@ -447,6 +466,23 @@ const WriteLabel *ExecutionGraph::addWriteLabelToGraph(std::unique_ptr<WriteLabe
 	auto *wLab = static_cast<const WriteLabel *>(addOtherLabelToGraph(std::move(lab)));
 	getCoherenceCalculator()->addStoreToLocAfter(wLab->getAddr(), wLab->getPos(), pred);
 	return wLab;
+}
+
+const SendLabel *ExecutionGraph::addSendLabelToGraph(std::unique_ptr<SendLabel> lab,
+						       Event pred)
+{
+	auto *sLab = static_cast<const SendLabel *>(addOtherLabelToGraph(std::move(lab)));
+	getSOCalculator()->addSendToChAfter(sLab->getChannel(), sLab->getPos(), pred);
+	return sLab;
+}
+
+const SendLabel *ExecutionGraph::addSendLabelToGraph(std::unique_ptr<SendLabel> lab,
+						       int offsetSO /* = -1 */)
+{
+	auto *sLab = static_cast<const SendLabel *>(addOtherLabelToGraph(std::move(lab)));
+	if (offsetSO >= 0)
+		getSOCalculator()->addSendToCh(sLab->getChannel(), sLab->getPos(), offsetSO);
+	return sLab;
 }
 
 const LockLabelLAPOR *ExecutionGraph::addLockLabelToGraphLAPOR(std::unique_ptr<LockLabelLAPOR> lab)
@@ -518,6 +554,12 @@ Calculator::PerLocRelation& ExecutionGraph::getPerLocRelation(RelationId id)
 	return relations.perLoc[relationIndex[id]];
 }
 
+Calculator::PerLocRelation& ExecutionGraph::getPerChRelation(RelationId id)
+{
+	BUG_ON(relationIndex.count(id) == 0);
+	return relations.perLoc[relationIndex[id]];
+}
+
 Calculator::GlobalRelation& ExecutionGraph::getCachedGlobalRelation(RelationId id)
 {
 	BUG_ON(relationIndex.count(id) == 0);
@@ -559,6 +601,18 @@ bool ExecutionGraph::hasCalculator(RelationId id) const
 Calculator *ExecutionGraph::getCalculator(RelationId id)
 {
 	return consistencyCalculators[calculatorIndex[id]].get();
+}
+
+SOCalculator *ExecutionGraph::getSOCalculator()
+{
+	return static_cast<SOCalculator *>(
+		consistencyCalculators[relationIndex[RelationId::so]].get());
+}
+
+SOCalculator *ExecutionGraph::getSOCalculator() const
+{
+	return static_cast<SOCalculator *>(
+		consistencyCalculators.at(relationIndex.at(RelationId::so)).get());
 }
 
 CoherenceCalculator *ExecutionGraph::getCoherenceCalculator()
@@ -812,6 +866,12 @@ bool ExecutionGraph::isConsistent(CheckConsType checkT)
 void ExecutionGraph::trackCoherenceAtLoc(SAddr addr)
 {
 	return getCoherenceCalculator()->trackCoherenceAtLoc(addr);
+}
+
+void ExecutionGraph::trackSendOrderAtCh(Channel ch)
+{
+	return static_cast<SOCalculator *>(
+		consistencyCalculators[relationIndex[RelationId::so]].get())->trackSendOrderAtCh(ch);
 }
 
 std::pair<int, int>

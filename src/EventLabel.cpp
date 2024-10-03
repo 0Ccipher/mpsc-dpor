@@ -150,6 +150,15 @@ llvm::raw_ostream& operator<<(llvm::raw_ostream& s,
 	case EventLabel::EL_RCUSyncLKMM:
 		s << "RCU_SYNC";
 		break;
+	case EventLabel::EL_ChannelOpen:
+		s << "chOPEN";
+		break;
+	case EventLabel::EL_ChannelSend:
+		s << "->ch";
+		break;
+	case EventLabel::EL_ChannelReceive:
+		s << ":<-ch";
+		break;
 	default:
 		PRINT_BUGREPORT_INFO_ONCE("print-label-type",
 					  "Cannot print label type");

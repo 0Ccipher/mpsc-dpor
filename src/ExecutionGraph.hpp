@@ -24,6 +24,7 @@
 #include "config.h"
 #include "AdjList.hpp"
 #include "CoherenceCalculator.hpp"
+#include "SOCalculator.hpp"
 #include "DriverGraphEnumAPI.hpp"
 #include "DepInfo.hpp"
 #include "Error.hpp"
@@ -57,6 +58,7 @@ class ExecutionGraph {
 public:
 	using Thread = std::vector<std::unique_ptr<EventLabel> >;
 	using ThreadList = std::vector<Thread>;
+	typedef int Channel;
 
 private:
 	using FixpointResult = Calculator::CalculationResult;
@@ -82,7 +84,7 @@ public:
 
 	/* Different relations that might exist in the graph */
 	enum class RelationId {
-		hb, co, lb, psc, ar, prop, ar_lkmm, pb, rcu_link, rcu, rcu_fence, xb
+		hb, co, lb, psc, ar, prop, ar_lkmm, pb, rcu_link, rcu, rcu_fence, xb, mpsc, so, rr
 	};
 
 protected:
@@ -164,6 +166,10 @@ public:
 					       int offsetMO = -1);
 	const WriteLabel *addWriteLabelToGraph(std::unique_ptr<WriteLabel> lab,
 					       Event pred);
+	const SendLabel *addSendLabelToGraph(std::unique_ptr<SendLabel> lab,
+						       Event pred);
+	const SendLabel *addSendLabelToGraph(std::unique_ptr<SendLabel> lab,
+							int offsetSO=-1);
 	const LockLabelLAPOR *addLockLabelToGraphLAPOR(std::unique_ptr<LockLabelLAPOR> lab);
 	const EventLabel *addOtherLabelToGraph(std::unique_ptr<EventLabel> lab);
 
@@ -200,6 +206,24 @@ public:
 	}
 	WriteLabel *getWriteLabel(Event e) {
 		return const_cast<WriteLabel *>(static_cast<const ExecutionGraph &>(*this).getWriteLabel(e));
+	}
+
+	/* Returns a label as a SendLabel.
+	 * If the passed event is not a send, returns nullptr  */
+	const SendLabel *getSendLabel(Event e) const {
+		return llvm::dyn_cast<SendLabel>(getEventLabel(e));
+	}
+	SendLabel *getSendLabel(Event e) {
+		return const_cast<SendLabel *>(static_cast<const ExecutionGraph &>(*this).getSendLabel(e));
+	}
+
+	/* Returns a label as a ReceiveLabel.
+	 * If the passed event is not a receive, returns nullptr  */
+	const ReceiveLabel *getReceiveLabel(Event e) const {
+		return llvm::dyn_cast<ReceiveLabel>(getEventLabel(e));
+	}
+	ReceiveLabel *getReceiveLabel(Event e) {
+		return const_cast<ReceiveLabel *>(static_cast<const ExecutionGraph &>(*this).getReceiveLabel(e));
 	}
 
 	/* Returns the label in the previous position of E.
@@ -345,6 +369,9 @@ public:
 	/* Returns a list of loads that can be revisited */
 	virtual std::vector<Event> getRevisitable(const WriteLabel *sLab) const;
 
+	/* Returns a list of receivers that can be revisited */
+	virtual std::vector<Event> getRevisitable(const SendLabel *sLab) const;
+
 	/* Returns the first po-predecessor satisfying F */
 	template <typename F>
 	const EventLabel *getPreviousLabelST(const EventLabel *lab, F&& cond) const {
@@ -384,6 +411,7 @@ public:
 	/* Returns a reference to the specified relation matrix */
 	Calculator::GlobalRelation& getGlobalRelation(RelationId id);
 	Calculator::PerLocRelation& getPerLocRelation(RelationId id);
+	Calculator::PerLocRelation& getPerChRelation(RelationId id);
 
 	/* Returns a reference to the cached version of the
 	 * specified relation matrix */
@@ -409,6 +437,8 @@ public:
 	CoherenceCalculator *getCoherenceCalculator() const;
 	LBCalculatorLAPOR *getLbCalculatorLAPOR();
 	LBCalculatorLAPOR *getLbCalculatorLAPOR() const;
+	SOCalculator *getSOCalculator();
+	SOCalculator *getSOCalculator() const;
 
 	/* Pers: Adds a persistency checker to the graph */
 	void addPersistencyChecker(std::unique_ptr<PersistencyChecker> pc);
@@ -578,6 +608,7 @@ public:
 	/* Modification order methods */
 
 	void trackCoherenceAtLoc(SAddr addr);
+	void trackSendOrderAtCh(Channel ch);
 	std::vector<Event> getCoherentStores(SAddr addr, Event pos);
 	std::pair<int, int> getCoherentPlacings(SAddr addr, Event pos, bool isRMW);
 	std::vector<Event> getCoherentRevisits(const WriteLabel *wLab);

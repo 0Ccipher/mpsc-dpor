@@ -27,7 +27,7 @@
 #include <string>
 
 
-enum class ModelType { rc11, imm, lkmm };
+enum class ModelType { rc11, imm, lkmm, mpsc };
 enum class SchedulePolicy { ltr, wf, random };
 #ifdef ENABLE_GENMC_DEBUG
 enum class VerbosityLevel { V0, V1, V2, V3 };

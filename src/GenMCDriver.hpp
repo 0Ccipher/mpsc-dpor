@@ -197,6 +197,11 @@ public:
 
 	/*** Instruction-related actions ***/
 
+	void visitChOpen(std::unique_ptr<SendLabel> sLab, const EventDeps *deps);
+	void visitSend(std::unique_ptr<SendLabel> sLab, const EventDeps *deps);
+	int visitReceive(std::unique_ptr<ReceiveLabel> rLab, const EventDeps *deps);
+
+
 	/* Returns the value this load reads */
 	SVal visitLoad(std::unique_ptr<ReadLabel> rLab, const EventDeps *deps);
 

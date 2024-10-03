@@ -1789,6 +1789,155 @@ void GenMCDriver::filterOptimizeRfs(const ReadLabel *lab, std::vector<Event> &st
 		filterValuesFromAnnotSAVER(lab, stores);
 }
 
+int GenMCDriver::visitReceive(std::unique_ptr<ReceiveLabel> rLab, const EventDeps *deps)
+{
+	WARN("Channel Receive :<- ch"+std::to_string(rLab->getChannel()) + "\n");
+	// auto &g = getGraph();
+	// auto *EE = getEE();
+	// auto &thr = EE->getCurThr();
+
+	// if (inRecoveryMode())
+	// 	return getRecReadRetValue(rLab.get());
+
+	// if (isExecutionDrivenByGraph())
+	// 	return getReadRetValueAndMaybeBlock(llvm::dyn_cast<ReadLabel>(g.getEventLabel(rLab->getPos())));
+
+	// /* First, we have to check whether the access is valid. This has to
+	//  * happen here because we may query the interpreter for this location's
+	//  * value in order to determine whether this load is going to be an RMW.
+	//  * Coherence needs to be tracked before validity is established, as
+	//  * consistency checks may be triggered if the access is invalid */
+	// g.trackCoherenceAtLoc(rLab->getAddr());
+
+	// rLab->setAnnot(EE->getCurrentAnnotConcretized());
+	// updateLabelViews(rLab.get(), deps);
+	// auto *lab = g.addReadLabelToGraph(std::move(rLab));
+
+	// if (!isAccessValid(lab)) {
+	// 	visitError(lab->getPos(), Status::VS_AccessNonMalloc);
+	// 	return SVal(0); /* Return some value; this execution will be blocked */
+	// }
+
+	// /* Get an approximation of the stores we can read from */
+	// auto stores = getRfsApproximation(lab);
+	// BUG_ON(stores.empty());
+
+	// /* Try to minimize the number of rfs */
+	// filterOptimizeRfs(lab, stores);
+
+	// /* ... add an appropriate label with a random rf */
+	// changeRf(lab->getPos(), stores.back());
+
+	// /* ... and make sure that the rf we end up with is consistent */
+	// if (!ensureConsistentRf(lab, stores))
+	// 	return SVal(0);
+
+	// GENMC_DEBUG(
+	// 	if (getConf()->vLevel >= VerbosityLevel::V3) {
+	// 		llvm::dbgs() << "--- Added load " << lab->getPos() << "\n";
+	// 		printGraph();
+	// 	}
+	// );
+
+	// /* Check whether the load forces us to reconsider some existing event */
+	// checkReconsiderFaiSpinloop(lab);
+
+	// /* Check for races and reading from uninitialized memory */
+	// checkForDataRaces(lab);
+	// if (llvm::isa<LockCasReadLabel>(lab))
+	// 	checkLockValidity(lab, stores);
+	// if (llvm::isa<BIncFaiReadLabel>(lab))
+	// 	checkBIncValidity(lab, stores);
+
+	// if (isRescheduledRead(lab->getPos()) && !llvm::isa<LockCasReadLabel>(lab))
+	// 	setRescheduledRead(Event::getInitializer());
+
+	// /* If this is the last part of barrier_wait() check whether we should block */
+	// auto retVal = getWriteValue(stores.back(), lab->getAddr(), lab->getAccess());
+	// if (llvm::isa<BWaitReadLabel>(lab) &&
+	//    retVal != getBarrierInitValue(lab->getAddr(), lab->getAccess()))
+	// 	visitBlock(BlockLabel::create(lab->getPos().next(), BlockageType::Barrier));
+
+	// /* Push all the other alternatives choices to the Stack (many maximals for wb) */
+	// std::for_each(stores.begin(), stores.end() - 1, [&](const Event &s){
+	// 	auto status = llvm::isa<MOCalculator>(g.getCoherenceCalculator()) ? false :
+	// 		isCoMaximal(lab->getAddr(), s, true); /* MO messes with the status */
+	// 	addToWorklist(std::make_unique<ForwardRevisit>(lab->getPos(), s, status));
+	// });
+	return 0;
+}
+
+void GenMCDriver::visitSend(std::unique_ptr<SendLabel> sLab, const EventDeps *deps)
+{
+	WARN("Channel Send : ch"+std::to_string(sLab->getChannel()) +"-> "+std::to_string(sLab->getVal()) + "\n");
+	if (isExecutionDrivenByGraph())
+		return;
+
+	auto &g = getGraph();
+	auto *EE = getEE();
+
+	/* If it's a valid channel access, track coherence for this channel */
+	g.trackSendOrderAtCh(sLab->getChannel());
+
+	
+	updateLabelViews(sLab.get(), deps);
+	auto *lab = g.addSendLabelToGraph(std::move(sLab));
+
+
+	// /* Find all possible placings in coherence for this store */
+	// auto placesRange = g.getCoherentPlacings(lab->getAddr(), lab->getPos(), g.isRMWStore(lab));
+	// auto &begO = placesRange.first;
+	// auto &endO = placesRange.second;
+
+	// /* It is always consistent to add the store at the end of MO */
+	// if (llvm::isa<BIncFaiWriteLabel>(lab) && lab->getVal() == SVal(0))
+	// 	const_cast<WriteLabel*>(lab)->setVal(getBarrierInitValue(lab->getAddr(), lab->getAccess()));
+	// g.getCoherenceCalculator()->addStoreToLoc(lab->getAddr(), lab->getPos(), endO);
+
+	// for (auto it = store_begin(g, lab->getAddr()) + begO,
+	// 	  ie = store_begin(g, lab->getAddr()) + endO; it != ie; ++it) {
+
+	// 	/* We cannot place the write just before the write of an RMW */
+	// 	if (g.isRMWStore(*it))
+	// 		continue;
+
+	// 	/* Push the stack item */
+	// 	if (!inRecoveryMode())
+	// 		addToWorklist(std::make_unique<WriteRevisit>(
+	// 				      lab->getPos(), std::distance(store_begin(g, lab->getAddr()), it)));
+	// }
+
+	// /* If the graph is not consistent (e.g., w/ LAPOR) stop the exploration */
+	// bool cons = ensureConsistentStore(lab);
+
+	// GENMC_DEBUG(
+	// 	if (getConf()->vLevel >= VerbosityLevel::V3) {
+	// 		llvm::dbgs() << "--- Added store " << lab->getPos() << "\n";
+	// 		printGraph();
+	// 	}
+	// );
+
+	// if (!inRecoveryMode() && !inReplay())
+	// 	calcRevisits(lab);
+
+	// if (!cons)
+	// 	return;
+
+	// checkReconsiderFaiSpinloop(lab);
+	// if (llvm::isa<HelpedCasWriteLabel>(lab))
+	// 	unblockWaitingHelping();
+
+	// /* Check for races */
+	// checkForDataRaces(lab);
+	// if (llvm::isa<UnlockWriteLabel>(lab))
+	// 	checkUnlockValidity(lab);
+	// if (llvm::isa<BInitWriteLabel>(lab))
+	// 	checkBInitValidity(lab);
+	// checkFinalAnnotations(lab);
+	// return;
+}
+
+
 SVal GenMCDriver::visitLoad(std::unique_ptr<ReadLabel> rLab, const EventDeps *deps)
 {
 	auto &g = getGraph();
