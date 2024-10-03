@@ -153,10 +153,10 @@ llvm::raw_ostream& operator<<(llvm::raw_ostream& s,
 	case EventLabel::EL_ChannelOpen:
 		s << "chOPEN";
 		break;
-	case EventLabel::EL_ChannelSend:
+	case EventLabel::EL_Send:
 		s << "->ch";
 		break;
-	case EventLabel::EL_ChannelReceive:
+	case EventLabel::EL_Receive:
 		s << ":<-ch";
 		break;
 	default:

@@ -462,6 +462,10 @@ public:
 	/* Returns true if e is maximal in addr */
 	bool isCoMaximal(SAddr addr, Event e, bool checkCache = false,
 			 CheckConsType t = CheckConsType::fast);
+	bool isSOMaximal(Channel ch, Event e, bool checkCache = false,
+			 CheckConsType t = CheckConsType::fast);
+	bool isRRMaximal(Channel addr, Event e, bool checkCache = false,
+				CheckConsType t = CheckConsType::fast);
 
 	/* Returns true if the current graph is consistent */
 	bool isConsistent(CheckConsType t = CheckConsType::fast);
@@ -533,6 +537,7 @@ public:
 
 	/* Returns true if e is hb-before w, or any of the reads that read from w */
 	bool isHbOptRfBefore(const Event e, const Event write) const;
+	bool isHbOptRfBefore(int ch, const Event e, const Event write) const;
 	bool isHbOptRfBeforeInView(const Event e, const Event write, const VectorClock &v) const;
 
 	/* Returns true if e is rel-before w, or any of the reads that read from w
@@ -611,6 +616,7 @@ public:
 	void trackSendOrderAtCh(Channel ch);
 	std::vector<Event> getCoherentStores(SAddr addr, Event pos);
 	std::pair<int, int> getCoherentPlacings(SAddr addr, Event pos, bool isRMW);
+	std::pair<int, int> getCoherentPlacings(Channel ch, Event pos);
 	std::vector<Event> getCoherentRevisits(const WriteLabel *wLab);
 
 
@@ -618,6 +624,7 @@ public:
 
 	void changeRf(Event read, Event store);
 	void changeStoreOffset(SAddr addr, Event s, int newOffset);
+	void changeSendOffset(Channel ch, Event s, int newOffset);
 	void resetJoin(Event join);
 	bool updateJoin(Event join, Event childLast);
 

@@ -687,6 +687,13 @@ bool isCoMaximalInRel(const Calculator::PerLocRelation &co, SAddr addr, const Ev
 		(!e.isInitializer() && coLoc.adj_begin(e) == coLoc.adj_end(e));
 }
 
+bool isSoMaximalInRel(const Calculator::PerLocRelation &so, Channel ch, const Event &e)
+{
+	auto &soCh = so.at(ch);
+	return (e.isInitializer() && soCh.empty()) ||
+		(!e.isInitializer() && soCh.adj_begin(e) == soCh.adj_end(e));
+}
+
 bool ExecutionGraph::isCoMaximal(SAddr addr, Event e, bool checkCache /* = false */,
 				 CheckConsType t /* = fast */)
 {
@@ -701,6 +708,40 @@ bool ExecutionGraph::isCoMaximal(SAddr addr, Event e, bool checkCache /* = false
 
 	isConsistent(t);
 	return isCoMaximalInRel(getPerLocRelation(RelationId::co), addr, e);
+}
+
+bool ExecutionGraph::isSOMaximal(Channel ch, Event e, bool checkCache /* = false */,
+				 CheckConsType t /* = fast */)
+{
+	auto *cc = getSOCalculator();
+	return true;
+	if (checkCache)
+		return cc->isCachedSoMaximal(ch, e);
+	if (getFPStatus() == FS_Done && getFPType() == t)
+		return isCoMaximalInRel(getPerLocRelation(RelationId::so), ch, e);
+	if (t == CheckConsType::fast)
+		return cc->isSoMaximal(ch, e);
+
+	isConsistent(t);
+	return isCoMaximalInRel(getPerLocRelation(RelationId::so), ch, e);
+}
+
+bool ExecutionGraph::isRRMaximal(Channel ch, Event e, bool checkCache /* = false */,
+				 CheckConsType t /* = fast */)
+{
+	return true;
+	//TODO
+	// auto *cc = getCoherenceCalculator();
+
+	// if (checkCache)
+	// 	return cc->isCachedCoMaximal(addr, e);
+	// if (getFPStatus() == FS_Done && getFPType() == t)
+	// 	return isCoMaximalInRel(getPerLocRelation(RelationId::co), addr, e);
+	// if (t == CheckConsType::fast)
+	// 	return cc->isCoMaximal(addr, e);
+
+	// isConsistent(t);
+	// return isCoMaximalInRel(getPerLocRelation(RelationId::co), addr, e);
 }
 
 void ExecutionGraph::doInits(bool full /* = false */)
@@ -877,6 +918,11 @@ void ExecutionGraph::trackSendOrderAtCh(Channel ch)
 std::pair<int, int>
 ExecutionGraph::getCoherentPlacings(SAddr addr, Event pos, bool isRMW) {
 	return getCoherenceCalculator()->getPossiblePlacings(addr, pos, isRMW);
+};
+
+std::pair<int, int>
+ExecutionGraph::getCoherentPlacings(Channel ch, Event pos) {
+	return getSOCalculator()->getPossiblePlacings(ch, pos);
 };
 
 std::vector<Event>
@@ -1116,6 +1162,22 @@ bool ExecutionGraph::isHbOptRfBefore(const Event e, const Event write) const
 	return false;
 }
 
+bool ExecutionGraph::isHbOptRfBefore(int ch, const Event e, const Event send) const
+{
+	const EventLabel *lab = getEventLabel(send);
+
+	BUG_ON(!llvm::isa<SendLabel>(lab));
+	auto *sLab = static_cast<const SendLabel *>(lab);
+	if (sLab->getHbView().contains(e))
+		return true;
+
+	auto &r = sLab->getReader();
+	if (!r.isBottom() && getEventLabel(r)->getHbView().contains(e))
+		return true;
+	
+	return false;
+}
+
 bool ExecutionGraph::isHbOptRfBeforeInView(const Event e, const Event write,
 					   const VectorClock &v) const
 {
@@ -1141,7 +1203,15 @@ bool ExecutionGraph::isWriteRfBefore(Event a, Event b) const
 
 	const EventLabel *lab = getEventLabel(a);
 
-	BUG_ON(!llvm::isa<WriteLabel>(lab));
+	BUG_ON(!llvm::isa<WriteLabel>(lab) && !llvm::isa<SendLabel>(lab));
+	if(llvm::isa<SendLabel>(lab)){
+		auto *sLab = static_cast<const SendLabel *>(lab);
+		auto &r = sLab->getReader();
+		if (!r.isBottom() && before.contains(r))
+			return true;
+		else
+			return false;
+	}
 	auto *wLab = static_cast<const WriteLabel *>(lab);
 	for (auto &r : wLab->getReadersList())
 		if (before.contains(r))
@@ -1336,6 +1406,14 @@ void ExecutionGraph::changeStoreOffset(SAddr addr, Event s, int newOffset)
 
 	if (auto *cohTracker = llvm::dyn_cast<MOCalculator>(getCoherenceCalculator()))
 		cohTracker->changeStoreOffset(addr, s, newOffset);
+}
+
+void ExecutionGraph::changeSendOffset(Channel ch, Event s, int newOffset)
+{
+	setFPStatus(FS_Stale);
+
+	if (auto *soTracker = getSOCalculator())
+		soTracker->changeSendOffset(ch, s, newOffset);
 }
 
 void ExecutionGraph::cutToStamp(unsigned int stamp)

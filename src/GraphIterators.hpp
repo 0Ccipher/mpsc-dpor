@@ -1,4 +1,7 @@
 /*
+* Omkar Tuppe
+*/
+/*
  * GenMC -- Generic Model Checking.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -24,6 +27,7 @@
 #include "config.h"
 #include "ExecutionGraph.hpp"
 #include "CoherenceCalculator.hpp"
+#include "SOCalculator.hpp"
 #include <iterator>
 #include <llvm/ADT/iterator_range.h>
 
@@ -224,5 +228,56 @@ inline store_range stores(const ExecutionGraph &G, SAddr addr)
 	return store_range(store_begin(G, addr), store_end(G, addr));
 }
 inline store_range stores(const ExecutionGraph *G, SAddr addr) { return stores(*G, addr); }
+
+
+/*******************************************************************************
+ **                         send-iteration utilities
+ ******************************************************************************/
+typedef int Channel;
+using const_send_iterator = SOCalculator::const_send_iterator;
+using const_reverse_send_iterator = SOCalculator::const_reverse_send_iterator;
+
+using send_range = llvm::iterator_range<const_send_iterator>;
+
+inline const_send_iterator send_begin(const ExecutionGraph &G, Channel ch)
+{
+	return G.getSOCalculator()->send_begin(ch);
+}
+inline const_send_iterator send_begin(const ExecutionGraph *G, Channel ch)
+{
+	return send_begin(*G, ch);
+}
+inline const_reverse_send_iterator send_rbegin(const ExecutionGraph &G, Channel ch)
+{
+	return G.getSOCalculator()->send_rbegin(ch);
+}
+
+inline const_reverse_send_iterator send_rbegin(const ExecutionGraph *G, Channel ch)
+{
+	return send_rbegin(*G, ch);
+}
+
+inline const_send_iterator send_end(const ExecutionGraph &G, Channel ch)
+{
+	return G.getSOCalculator()->send_end(ch);
+}
+inline const_send_iterator send_end(const ExecutionGraph *G, Channel ch)
+{
+	return send_end(*G, ch);
+}
+inline const_reverse_send_iterator send_rend(const ExecutionGraph &G, Channel ch)
+{
+	return G.getSOCalculator()->send_rend(ch);
+}
+inline const_reverse_send_iterator send_rend(const ExecutionGraph *G, Channel ch)
+{
+	return send_rend(*G, ch);
+}
+
+inline send_range sends(const ExecutionGraph &G, Channel ch)
+{
+	return send_range(send_begin(G, ch), send_end(G, ch));
+}
+inline send_range sends(const ExecutionGraph *G, Channel ch) { return sends(*G, ch); }
 
 #endif /* __GRAPH_ITERATORS_HPP__ */

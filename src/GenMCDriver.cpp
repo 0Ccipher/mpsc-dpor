@@ -892,6 +892,18 @@ bool GenMCDriver::isCoMaximal(SAddr addr, Event e, bool checkCache /* = false */
 	return getGraph().isCoMaximal(addr, e, checkCache, getCheckConsType(p));
 }
 
+bool GenMCDriver::isSOMaximal(Channel ch, Event e, bool checkCache /* = false */,
+			      ProgramPoint p /* = step */)
+{
+	return getGraph().isSOMaximal(ch, e, checkCache, getCheckConsType(p));
+}
+
+bool GenMCDriver::isRRMaximal(Channel ch, Event e, bool checkCache /* = false */,
+			      ProgramPoint p /* = step */)
+{
+	return getGraph().isRRMaximal(ch, e, checkCache, getCheckConsType(p));
+}
+
 bool GenMCDriver::isHazptrProtected(const MallocLabel *aLab, const MemAccessLabel *mLab) const
 {
 	auto &g = getGraph();
@@ -1792,9 +1804,9 @@ void GenMCDriver::filterOptimizeRfs(const ReadLabel *lab, std::vector<Event> &st
 int GenMCDriver::visitReceive(std::unique_ptr<ReceiveLabel> rLab, const EventDeps *deps)
 {
 	WARN("Channel Receive :<- ch"+std::to_string(rLab->getChannel()) + "\n");
-	// auto &g = getGraph();
-	// auto *EE = getEE();
-	// auto &thr = EE->getCurThr();
+	auto &g = getGraph();
+	auto *EE = getEE();
+	auto &thr = EE->getCurThr();
 
 	// if (inRecoveryMode())
 	// 	return getRecReadRetValue(rLab.get());
@@ -1884,31 +1896,29 @@ void GenMCDriver::visitSend(std::unique_ptr<SendLabel> sLab, const EventDeps *de
 	auto *lab = g.addSendLabelToGraph(std::move(sLab));
 
 
-	// /* Find all possible placings in coherence for this store */
-	// auto placesRange = g.getCoherentPlacings(lab->getAddr(), lab->getPos(), g.isRMWStore(lab));
-	// auto &begO = placesRange.first;
-	// auto &endO = placesRange.second;
+	/* Find all possible placings in SO for this send */
+	auto placesRange = g.getCoherentPlacings(lab->getChannel(), lab->getPos());
+	auto &begO = placesRange.first;
+	auto &endO = placesRange.second;
 
-	// /* It is always consistent to add the store at the end of MO */
-	// if (llvm::isa<BIncFaiWriteLabel>(lab) && lab->getVal() == SVal(0))
-	// 	const_cast<WriteLabel*>(lab)->setVal(getBarrierInitValue(lab->getAddr(), lab->getAccess()));
-	// g.getCoherenceCalculator()->addStoreToLoc(lab->getAddr(), lab->getPos(), endO);
+	/* It is always consistent to add the send at the end of SO */
+	g.getSOCalculator()->addSendToCh(lab->getChannel(), lab->getPos(), endO);
 
-	// for (auto it = store_begin(g, lab->getAddr()) + begO,
-	// 	  ie = store_begin(g, lab->getAddr()) + endO; it != ie; ++it) {
+	for (auto it = store_begin(g, lab->getChannel()) + begO,
+		  ie = store_begin(g, lab->getChannel()) + endO; it != ie; ++it) {
 
-	// 	/* We cannot place the write just before the write of an RMW */
-	// 	if (g.isRMWStore(*it))
-	// 		continue;
+		/* Push the stack item */
+		if (!inRecoveryMode())
+			addToWorklist(std::make_unique<SendRevisit>(
+					      lab->getPos(), std::distance(store_begin(g, lab->getChannel()), it)));
+	}
 
-	// 	/* Push the stack item */
-	// 	if (!inRecoveryMode())
-	// 		addToWorklist(std::make_unique<WriteRevisit>(
-	// 				      lab->getPos(), std::distance(store_begin(g, lab->getAddr()), it)));
-	// }
-
-	// /* If the graph is not consistent (e.g., w/ LAPOR) stop the exploration */
-	// bool cons = ensureConsistentStore(lab);
+	/* If the graph is not consistent stop the exploration */
+	bool cons = true;
+	if (!isConsistent(ProgramPoint::step)) {
+		getEE()->block(BlockageType::Cons);
+		cons = false;
+	}
 
 	// GENMC_DEBUG(
 	// 	if (getConf()->vLevel >= VerbosityLevel::V3) {
@@ -1917,11 +1927,11 @@ void GenMCDriver::visitSend(std::unique_ptr<SendLabel> sLab, const EventDeps *de
 	// 	}
 	// );
 
-	// if (!inRecoveryMode() && !inReplay())
-	// 	calcRevisits(lab);
+	if (!inRecoveryMode() && !inReplay())
+		calcRevisits(lab);
 
-	// if (!cons)
-	// 	return;
+	if (!cons)
+		return;
 
 	// checkReconsiderFaiSpinloop(lab);
 	// if (llvm::isa<HelpedCasWriteLabel>(lab))
@@ -1934,7 +1944,7 @@ void GenMCDriver::visitSend(std::unique_ptr<SendLabel> sLab, const EventDeps *de
 	// if (llvm::isa<BInitWriteLabel>(lab))
 	// 	checkBInitValidity(lab);
 	// checkFinalAnnotations(lab);
-	// return;
+	return;
 }
 
 
@@ -2754,6 +2764,115 @@ bool GenMCDriver::calcRevisits(const WriteLabel *sLab)
 
 	return checkAtomicity(sLab) && checkRevBlockHELPER(sLab, loads) && !isMoot();
 }
+//TODO
+bool GenMCDriver::calcRevisits(const SendLabel *sLab)
+{
+	auto &g = getGraph();
+
+	// auto loads = getRevisitableApproximation(sLab);
+	// if (tryOptimizeRevisits(sLab, loads))
+	// 	return true;
+
+	// for (auto &l : loads) {
+	// 	auto *rLab = g.getReadLabel(l);
+	// 	BUG_ON(!rLab);
+
+	// 	auto br = constructBackwardRevisit(rLab, sLab);
+	// 	if (!g.isMaximalExtension(*br))
+	// 		break;
+
+	// 	/* Optimize handling of lock operations */
+	// 	if (llvm::isa<LockCasReadLabel>(rLab) && llvm::isa<UnlockWriteLabel>(sLab)) {
+	// 		if (tryRevisitLockInPlace(*br))
+	// 			break;
+	// 		moot();
+	// 	}
+
+	// 	GENMC_DEBUG(checkForDuplicateRevisit(rLab, sLab););
+
+	// 	auto v = g.getRevisitView(*br);
+	// 	auto og = copyGraph(&*br, &*v);
+	// 	auto read = rLab->getPos();
+	// 	auto write = sLab->getPos(); /* prefetch since we are gonna change state */
+
+	// 	auto localState = releaseLocalState();
+	// 	auto newState = std::make_unique<SharedState>(std::move(og), getEE()->getSharedState());
+
+	// 	setSharedState(std::move(newState));
+
+	// 	notifyEERemoved(*v);
+	// 	revisitRead(BackwardRevisit(read, write));
+
+	// 	/* If there are idle workers in the thread pool,
+	// 	 * try submitting the job instead */
+	// 	auto *tp = getThreadPool();
+	// 	if (tp && tp->getRemainingTasks() < 8 * tp->size()) {
+	// 		tp->submit(getSharedState());
+	// 	} else {
+	// 		if (isConsistent(ProgramPoint::step))
+	// 			explore();
+	// 	}
+
+	// 	restoreLocalState(std::move(localState));
+	// }
+
+	return  !isMoot();
+}
+
+//TODO
+bool GenMCDriver::calcRevisits(const ReceiveLabel *sLab)
+{
+	auto &g = getGraph();
+
+	// auto loads = getRevisitableApproximation(sLab);
+	// if (tryOptimizeRevisits(sLab, loads))
+	// 	return true;
+
+	// for (auto &l : loads) {
+	// 	auto *rLab = g.getReadLabel(l);
+	// 	BUG_ON(!rLab);
+
+	// 	auto br = constructBackwardRevisit(rLab, sLab);
+	// 	if (!g.isMaximalExtension(*br))
+	// 		break;
+
+	// 	/* Optimize handling of lock operations */
+	// 	if (llvm::isa<LockCasReadLabel>(rLab) && llvm::isa<UnlockWriteLabel>(sLab)) {
+	// 		if (tryRevisitLockInPlace(*br))
+	// 			break;
+	// 		moot();
+	// 	}
+
+	// 	GENMC_DEBUG(checkForDuplicateRevisit(rLab, sLab););
+
+	// 	auto v = g.getRevisitView(*br);
+	// 	auto og = copyGraph(&*br, &*v);
+	// 	auto read = rLab->getPos();
+	// 	auto write = sLab->getPos(); /* prefetch since we are gonna change state */
+
+	// 	auto localState = releaseLocalState();
+	// 	auto newState = std::make_unique<SharedState>(std::move(og), getEE()->getSharedState());
+
+	// 	setSharedState(std::move(newState));
+
+	// 	notifyEERemoved(*v);
+	// 	revisitRead(BackwardRevisit(read, write));
+
+	// 	/* If there are idle workers in the thread pool,
+	// 	 * try submitting the job instead */
+	// 	auto *tp = getThreadPool();
+	// 	if (tp && tp->getRemainingTasks() < 8 * tp->size()) {
+	// 		tp->submit(getSharedState());
+	// 	} else {
+	// 		if (isConsistent(ProgramPoint::step))
+	// 			explore();
+	// 	}
+
+	// 	restoreLocalState(std::move(localState));
+	// }
+
+	return  !isMoot();
+}
 
 void GenMCDriver::repairLock(LockCasReadLabel *lab)
 {
@@ -2917,6 +3036,22 @@ bool GenMCDriver::revisitRead(const ReadRevisit &ri)
 	return true;
 }
 
+bool GenMCDriver::revisitReceive(const ReceiveRevisit &ri)
+{
+	/* We are dealing with a read: change its reads-from and also check
+	 * whether a part of an RMW should be added */
+	auto &g = getGraph();
+	auto *rLab = llvm::dyn_cast<ReceiveLabel>(g.getEventLabel(ri.getPos()));
+	BUG_ON(!rLab);
+
+	changeRf(rLab->getPos(), ri.getRev());
+	auto *fri = llvm::dyn_cast<ForwardRecvRevisit>(&ri);
+	//TODO - rr maximal
+	rLab->setAddedMax(isRRMaximal(rLab->getChannel(), ri.getRev()));
+	return true;
+}
+
+
 bool GenMCDriver::restrictAndRevisit(WorkSet::ItemT item)
 {
 	auto &g = getGraph();
@@ -2937,7 +3072,15 @@ bool GenMCDriver::restrictAndRevisit(WorkSet::ItemT item)
 		repairDanglingLocks();
 		repairDanglingBarriers();
 		return calcRevisits(wLab);
-	} else if (auto *oi = llvm::dyn_cast<OptionalRevisit>(item.get())) {
+	}
+	else if (auto *mi = llvm::dyn_cast<SendRevisit>(item.get())) {
+		auto *sLab = llvm::dyn_cast<SendLabel>(lab);
+		BUG_ON(!sLab);
+		g.changeSendOffset(sLab->getChannel(), sLab->getPos(), mi->getSOPos());
+		sLab->setAddedMax(false);
+		return calcRevisits(sLab);
+	} 
+	else if (auto *oi = llvm::dyn_cast<OptionalRevisit>(item.get())) {
 		auto *oLab = llvm::dyn_cast<OptionalLabel>(lab);
 		--result.exploredBlocked;
 		BUG_ON(!oLab);
@@ -2946,6 +3089,10 @@ bool GenMCDriver::restrictAndRevisit(WorkSet::ItemT item)
 		return true;
 	}
 
+	else if(auto *ri = llvm::dyn_cast<ReceiveRevisit>(item.get()))
+	{
+		return revisitReceive(*ri);
+	}
 	/* Otherwise, handle the read case */
 	auto *ri = llvm::dyn_cast<ReadRevisit>(item.get());
 	BUG_ON(!ri);

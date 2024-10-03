@@ -56,8 +56,7 @@ SOCalculator::getPossiblePlacings(Channel ch, Event send)
 	const auto &g = getGraph();
 
 	auto rangeBegin = splitChSOBefore(ch, send);
-	auto rangeEnd = (supportsOutOfOrder()) ? splitChSOAfter(ch, send) :
-		getSendsToCh(ch).size();
+	auto rangeEnd = getSendsToCh(ch).size();
 	return std::make_pair(rangeBegin, rangeEnd);
 
 }
@@ -76,16 +75,16 @@ void SOCalculator::addSendToChAfter(Channel ch, Event send, Event pred)
 	addSendToCh(ch, send, offset + 1);
 }
 
-bool SOCalculator::isCoMaximal(Channel ch, Event send)
+bool SOCalculator::isSoMaximal(Channel ch, Event send)
 {
 	auto &chSO = sends[ch];
 	return (send.isInitializer() && chSO.empty()) ||
 	       (!send.isInitializer() && !chSO.empty() && send == chSO.back());
 }
 
-bool SOCalculator::isCachedCoMaximal(Channel ch, Event send)
+bool SOCalculator::isCachedSoMaximal(Channel ch, Event send)
 {
-	return isCoMaximal(ch, send);
+	return isSoMaximal(ch, send);
 }
 
 void SOCalculator::changeSendOffset(Channel ch, Event send, int newOffset)
@@ -96,43 +95,23 @@ void SOCalculator::changeSendOffset(Channel ch, Event send, int newOffset)
 	chSO.insert(send_begin(ch) + newOffset, send);
 }
 
+bool SOCalculator::isSendRfBefore(Event a, Event b) const
+{
+	const auto &g = getGraph();
+	return g.isWriteRfBefore(a,b);
+}
+
 int SOCalculator::splitChSOBefore(Channel ch, Event e)
 {
 	const auto &g = getGraph();
 	auto rit = std::find_if(send_rbegin(ch), send_rend(ch), [&](const Event &s){
-		return g.isWriteRfBefore(s, e.prev());
+		return isSendRfBefore(s, e.prev());
 	});
 	return (rit == send_rend(ch)) ? 0 : std::distance(rit, send_rend(ch));
 }
 
-int SOCalculator::splitChSOAfterHb(Channel ch, const Event receive)
-{
-	const auto &g = getGraph();
 
-	// auto initRfs = g.getInitRfsAtCh(ch);
-	// if (std::any_of(initRfs.begin(), initRfs.end(), [&receive,&g](const Event &rf){
-	// 	return g.getEventLabel(rf)->getHbView().contains(receive);
-	// }))
-	// 	return 0;
 
-	auto it = std::find_if(send_begin(ch), send_end(ch), [&](const Event &s){
-		return g.isHbOptRfBefore(receive, s);
-	});
-	if (it == send_end(ch))
-		return std::distance(send_begin(ch), send_end(ch));
-	return (g.getEventLabel(*it)->getHbView().contains(receive)) ?
-		std::distance(send_begin(ch), it) : std::distance(send_begin(ch), it) + 1;
-}
-
-int SOCalculator::splitChSOAfter(Channel ch, const Event e)
-{
-	const auto &g = getGraph();
-	auto it = std::find_if(send_begin(ch), send_end(ch), [&](const Event &s){
-		return g.isHbOptRfBefore(e, s);
-	});
-	return (it == send_end(ch)) ? std::distance(send_begin(ch), send_end(ch)) :
-		std::distance(send_begin(ch), it);
-}
 
 std::vector<Event>
 SOCalculator::getCoherentSends(Channel ch, Event receive)
@@ -152,13 +131,7 @@ SOCalculator::getCoherentSends(Channel ch, Event receive)
 	else
 		sends.push_back(*(send_begin(ch) + begO - 1));
 
-	/*
-	 * If the model supports out-of-order execution we have to also
-	 * account for the possibility the receive is hb-before some other
-	 * send, or some receive that receives from a send.
-	 */
-	auto endO = (supportsOutOfOrder()) ? splitChSOAfterHb(ch, receive) :
-		std::distance(send_begin(ch), send_end(ch));
+	auto endO = std::distance(send_begin(ch), send_end(ch));
 	sends.insert(sends.end(), send_begin(ch) + begO, send_begin(ch) + endO);
 	return sends;
 }
@@ -205,7 +178,7 @@ SOCalculator::getCoherentRevisits(const SendLabel *sLab)
 	auto ls = g.getRevisitable(sLab);
 
 	/* If this send is po- and mo-maximal then we are done */
-	if (!supportsOutOfOrder() && isCoMaximal(sLab->getChannel(), sLab->getPos()))
+	if (!supportsOutOfOrder() && isSoMaximal(sLab->getChannel(), sLab->getPos()))
 		return ls;
 
 	/* First, we have to exclude (mo;rf?;hb?;sb)-after receives */
@@ -221,28 +194,6 @@ SOCalculator::getCoherentRevisits(const SendLabel *sLab)
 	 * due to po-maximality */
 	if (!supportsOutOfOrder())
 		return ls;
-
-	/* Otherwise, we also have to exclude hb-before loads */
-	ls.erase(std::remove_if(ls.begin(), ls.end(), [&](Event e)
-		{ return g.getEventLabel(sLab->getPos())->getHbView().contains(e); }),
-		ls.end());
-
-	/* ...and also exclude (mo^-1; rf?; (hb^-1)?; sb^-1)-after receives in
-	 * the resulting graph */
-	auto &before = g.getPPoRfBefore(sLab->getPos());
-	auto moInvOptRfs = getSOInvOptRfAfter(sLab);
-	ls.erase(std::remove_if(ls.begin(), ls.end(), [&](Event e)
-				{ auto *eLab = g.getEventLabel(e);
-				  auto v = g.getDepViewFromStamp(eLab->getStamp());
-				  v.update(before);
-				  return std::any_of(moInvOptRfs.begin(),
-						     moInvOptRfs.end(),
-						     [&](Event ev)
-						     { return v.contains(ev) &&
-						       g.getHbPoBefore(ev).contains(e); });
-				}),
-		 ls.end());
-
 	return ls;
 }
 

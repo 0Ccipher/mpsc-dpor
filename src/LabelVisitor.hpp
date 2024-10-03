@@ -106,6 +106,8 @@ public:
 			VISIT_LABEL(DskOpen);
 			VISIT_LABEL(RCULock, LKMM);
 			VISIT_LABEL(RCUUnlock, LKMM);
+			VISIT_LABEL(Send);
+			VISIT_LABEL(Receive);
 		default:
 			BUG();
 		}
@@ -182,6 +184,10 @@ public:
 	void visitDskOpenLabel(const DskOpenLabel &lab) { return DELEGATE_LABEL(EventLabel); }
 	void visitRCULockLabelLKMM(const RCULockLabelLKMM &lab) { return DELEGATE_LABEL(EventLabel); }
 	void visitRCUUnlockLabelLKMM(const RCUUnlockLabelLKMM &lab) { return DELEGATE_LABEL(EventLabel); }
+
+	void visitSendLabel(const SendLabel &lab) {return DELEGATE_LABEL(ChannelAccessLabel);}
+	void visitReceiveabel(const ReceiveLabel &lab) {return DELEGATE_LABEL(ChannelAccessLabel);}
+	void visitChannelAccessLabel(const ChannelAccessLabel &lab) { return DELEGATE_LABEL(EventLabel); }
 
 	/*
 	 * If none of the above matched, propagate to the next level.
@@ -263,10 +269,27 @@ public:
 		out << ")";
 	}
 
+	void visitReceiveLabel(const ReceiveLabel &lab) {
+		DELEGATE_LABEL(ChannelAccessLabel);
+		out << " (" << std::to_string(lab.getChannel());
+		if (!lab.getRf().isBottom()) {
+			out << ", TODO";
+			// out << std::to_string(lab.getRf());
+		}
+		out << ")";
+	}
+
 	void visitWriteLabel(const WriteLabel &lab) {
 		DELEGATE_LABEL(MemAccessLabel);
 		out << " (" << fmtFun(lab.getAddr()) << ", ";
 		printVal(lab.getVal(), lab.getType());
+		out << ")";
+	}
+
+	void visitSendLabel(const SendLabel &lab) {
+		DELEGATE_LABEL(ChannelAccessLabel);
+		out << " (" << std::to_string(lab.getChannel()) << ", ";
+		out << std::to_string(lab.getVal());
 		out << ")";
 	}
 
@@ -344,8 +367,24 @@ public:
 			out << "[" << lab.getRf() << "]";
 	}
 
+	/* Helper to print receive RFs */
+	void printRf(const ReceiveLabel &lab) {
+		if (lab.getRf().isInitializer())
+			out << "[INIT]";
+		else if (lab.getRf().isBottom())
+			out << "[BOTTOM]";
+		else
+			out << "[" << lab.getRf() << "]";
+	}
+
 	void visitReadLabel(const ReadLabel &lab) {
 		LabelPrinterBase::visitReadLabel(lab);
+		out << " ";
+		printRf(lab);
+	}
+
+	void visitReceiveLabel(const ReceiveLabel &lab) {
+		LabelPrinterBase::visitReceiveLabel(lab);
 		out << " ";
 		printRf(lab);
 	}

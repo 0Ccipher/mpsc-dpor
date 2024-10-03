@@ -52,6 +52,7 @@ protected:
 	using RevisitSetT = std::map<unsigned int, RevisitSet>;
 
 public:
+	typedef int Channel;
 	/* Verification status.
 	 * Public to enable the interpreter utilize it */
 	enum class Status {
@@ -381,6 +382,10 @@ protected:
 	/* Returns true if E is maximal in ADDR at P*/
 	bool isCoMaximal(SAddr addr, Event e, bool checkCache = false,
 			 ProgramPoint p = ProgramPoint::step);
+	bool isSOMaximal(Channel ch, Event e, bool checkCache = false,
+			 ProgramPoint p = ProgramPoint::step);
+	bool isRRMaximal(Channel addr, Event e, bool checkCache = false,
+				ProgramPoint p = ProgramPoint::step);
 
 private:
 	/*** Worklist-related ***/
@@ -546,10 +551,15 @@ private:
 	/* Calculates revisit options and pushes them to the worklist.
 	 * Returns true if the current exploration should continue */
 	bool calcRevisits(const WriteLabel *lab);
+	bool calcRevisits(const SendLabel *lab);
+	bool calcRevisits(const ReceiveLabel *lab);
 
 	/* Modifies (but not restricts) the graph when we are revisiting a read.
 	 * Returns true if the resulting graph should be explored. */
 	bool revisitRead(const ReadRevisit &s);
+	/* Modifies (but not restricts) the graph when we are revisiting a receive.
+	 * Returns true if the resulting graph should be explored. */
+	bool revisitReceive(const ReceiveRevisit &ri);
 
 	/* Adjusts the graph and the worklist according to the backtracking option S.
 	 * Returns true if the resulting graph should be explored */

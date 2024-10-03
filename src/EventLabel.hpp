@@ -127,8 +127,8 @@ public:
 		EL_RCUUnlockLKMM,
 		EL_ChanelAccesBegin,
 		EL_ChannelOpen,
-		EL_ChannelSend,
-		EL_ChannelReceive,
+		EL_Send,
+		EL_Receive,
 		EL_ChanelAccesEnd,
 	};
 
@@ -647,10 +647,10 @@ protected:
 public:
 	ReceiveLabel(unsigned int st, llvm::AtomicOrdering ord, Event pos, Channel ch,
 		 Event rf = Event::getBottom())
-		: ReceiveLabel(EL_ChannelReceive, st, ord, pos, ch, rf) {}
+		: ReceiveLabel(EL_Receive, st, ord, pos, ch, rf) {}
 	ReceiveLabel(llvm::AtomicOrdering ord, Event pos, Channel ch,
 		  Event rf = Event::getBottom())
-		: ReceiveLabel(EL_ChannelReceive, ord, pos, ch, rf) {}
+		: ReceiveLabel(EL_Receive, ord, pos, ch, rf) {}
 
 	template<typename... Ts>
 	static std::unique_ptr<ReceiveLabel> create(Ts&&... params) {
@@ -674,7 +674,7 @@ public:
 
 	static bool classof(const EventLabel *lab) { return classofKind(lab->getKind()); }
 	static bool classofKind(EventLabelKind k) {
-		return k == EL_ChannelReceive;
+		return k == EL_Receive;
 	}
 
 private:
@@ -712,9 +712,9 @@ protected:
 
 public:
 	SendLabel(unsigned int st, llvm::AtomicOrdering ord, Event pos, Channel ch, int val)
-		: SendLabel(EL_ChannelSend, st, ord, pos, ch, val) {}
+		: SendLabel(EL_Send, st, ord, pos, ch, val) {}
 	SendLabel(llvm::AtomicOrdering ord, Event pos, Channel ch, int val)
-		: SendLabel(EL_ChannelSend, ord, pos, ch, val) {}
+		: SendLabel(EL_Send, ord, pos, ch, val) {}
 
 	template<typename... Ts>
 	static std::unique_ptr<SendLabel> create(Ts&&... params) {
@@ -734,7 +734,7 @@ public:
 
 	static bool classof(const EventLabel *lab) { return classofKind(lab->getKind()); }
 	static bool classofKind(EventLabelKind k) {
-		return k == EL_ChannelSend;
+		return k == EL_Send;
 	}
 
 private:

@@ -118,21 +118,21 @@ public:
 	 void
 	addSendToChAfter(Channel ch, Event send, Event pred) ;
 
-	/* Returns whether STORE is maximal in LOC */
+	/* Returns whether Send is maximal in ch */
 	 bool
-	isCoMaximal(Channel ch, Event send) ;
+	isSoMaximal(Channel ch, Event send) ;
 
-	/* Returns whether STORE is maximal in LOC.
+	/* Returns whether Send is maximal in ch.
 	 * Pre: Cached information for this channel exist. */
 	 bool
-	isCachedCoMaximal(Channel ch, Event send) ;
+	isCachedSoMaximal(Channel ch, Event send) ;
 
-	/* Returns all the sends for which if "read" reads-from, coherence
+	/* Returns all the sends for which if "receive" receives-from, coherence
 	 * is not violated */
 	 std::vector<Event>
-	getCoherentSends(Channel ch, Event read) ;
+	getCoherentSends(Channel ch, Event receive) ;
 
-	/* Returns all the reads that "wLab" can revisit without violating
+	/* Returns all the receives that "wLab" can revisit without violating
 	 * coherence */
 	 std::vector<Event>
 	getCoherentRevisits(const SendLabel *wLab) ;
@@ -160,24 +160,12 @@ private:
 	int getSendOffset(Channel ch, Event e) const;
 
 	/* Returns the index of the first sends that is _not_ (rf?;hb)-before
-	 * the event "read". If no such sendss exist (i.e., all sendss are
+	 * the event "receive". If no such sendss exist (i.e., all sendss are
 	 * concurrent in models that do not support out-of-order execution),
 	 * it returns 0. */
-	int splitChSOBefore(Channel ch, Event read);
+	int splitChSOBefore(Channel ch, Event receive);
+	bool isSendRfBefore(Event a, Event b) const;
 
-	/* Returns the index of the first sends that is hb-after "read",
-	 * or the next index of the first sends that is read by a read that
-	 * is hb-after "read". Returns 0 if the latter condition holds for
-	 * the initializer event, and the number of the sendss in "ch"
-	 * if the conditions do not hold for any sends in that channel. */
-	int splitChSOAfterHb(Channel ch, const Event read);
-
-	/* Similar to splitChSOAfterHb(), but used for calculating possible SO
-	 * placings. This means it does not take into account reads-from the
-	 * initializer, and also returns the index (as opposed to index+1) of
-	 * the first sends that is hb-after "s" or is read by a read that is
-	 * hb-after "s" */
-	int splitChSOAfter(Channel ch, const Event s);
 
 	/* Returns the events that are mo;rf?-after sLab */
 	std::vector<Event> getSOOptRfAfter(const SendLabel *sLab);

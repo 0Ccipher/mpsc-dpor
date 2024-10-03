@@ -40,6 +40,12 @@ public:
 		RV_ReadLast,
 		RV_MO,
 		RV_Opt,
+		RV_ReceiveBegin,
+		RV_FRevRecv,
+		RV_BRevSR,
+		RV_BRevRS,
+		RV_ReceiveEnd,
+		RV_SO,
 	};
 
 protected:
@@ -202,6 +208,169 @@ public:
 
 private:
 	int moPos;
+};
+
+
+/*
+ * ReceiveRevisit class (abstract) - Represents various receive revisit kinds (forward, backward, etc)
+ */
+class ReceiveRevisit : public Revisit {
+
+protected:
+	/* Constructors */
+	ReceiveRevisit() = delete;
+	ReceiveRevisit(Kind k, Event p, Event r) : Revisit(k, p), rev(r) {}
+
+public:
+	/* Returns the event performing the revisit */
+	Event getRev() const { return rev; }
+
+	static bool classof(const Revisit *item) {
+		return item->getKind() >= RV_ReceiveBegin && item->getKind() <= RV_ReceiveEnd;
+	}
+
+private:
+	Event rev;
+};
+
+/*
+ * ForwardRecvRevisit class - Represents a forward revisit
+ */
+class ForwardRecvRevisit : public ReceiveRevisit {
+
+protected:
+	ForwardRecvRevisit(Kind k, Event p, Event r, bool maximal = false)
+		: ReceiveRevisit(k, p, r), maximal(maximal) {}
+
+public:
+	ForwardRecvRevisit(Event p, Event r, bool maximal = false) : ForwardRecvRevisit(RV_FRev, p, r, maximal) {}
+
+	bool isMaximal() const { return maximal; }
+
+	static bool classof(const Revisit *item) {
+		return item->getKind() == RV_FRevRecv;
+	}
+
+private:
+	bool maximal;
+};
+
+/*
+ * BackwardSRRevisit class - Represents a backward revisit of receive by send 
+ */
+class BackwardSRRevisit : public ReceiveRevisit {
+
+protected:
+	BackwardSRRevisit(Kind k, Event p, Event r,
+		 std::vector<std::unique_ptr<EventLabel> > &&prefix,
+		 std::vector<std::pair<Event, Event> > &&soPlacings)
+		: ReceiveRevisit(k, p, r),
+		  prefix(std::move(prefix)),
+		  soPlacings(std::move(soPlacings)) {}
+
+public:
+	BackwardSRRevisit(Event p, Event r,
+		 std::vector<std::unique_ptr<EventLabel> > &&prefix,
+		 std::vector<std::pair<Event, Event> > &&soPlacings)
+		: BackwardSRRevisit(RV_BRevSR, p, r, std::move(prefix), std::move(soPlacings)) {}
+	BackwardSRRevisit(Event p, Event r)
+		: BackwardSRRevisit(p, r, {}, {}) {}
+	BackwardSRRevisit(const ReceiveLabel *rLab, const SendLabel *sLab)
+		: BackwardSRRevisit(rLab->getPos(), sLab->getPos()) {}
+
+	/* Returns (releases) the prefix of the revisiting event */
+	std::vector<std::unique_ptr<EventLabel> > &&getPrefixRel() {
+		return std::move(prefix);
+	}
+
+	/* Returns (but does not release) the prefix of the revisiting event */
+	const std::vector<std::unique_ptr<EventLabel> > &getPrefixNoRel() const {
+		return prefix;
+	}
+
+	/* Returns (releases) the SO placing in the prefix */
+	std::vector<std::pair<Event, Event> > &&getSOPlacingsRel() {
+		return std::move(soPlacings);
+	}
+
+	static bool classof(const Revisit *item) {
+		return item->getKind() == RV_BRevSR;
+	}
+
+private:
+	std::vector<std::unique_ptr<EventLabel> >  prefix;
+	std::vector<std::pair<Event, Event> >  soPlacings;
+};
+
+/*
+ * BackwardRSRevisit class - Represents a backward revisit of p=send by r=receive 
+ */
+class BackwardRSRevisit : public ReceiveRevisit {
+
+protected:
+	BackwardRSRevisit(Kind k, Event p, Event r,
+		 std::vector<std::unique_ptr<EventLabel> > &&prefix,
+		 std::vector<std::pair<Event, Event> > &&soPlacings)
+		: ReceiveRevisit(k, p, r),
+		  prefix(std::move(prefix)),
+		  soPlacings(std::move(soPlacings)) {}
+
+public:
+	BackwardRSRevisit(Event p, Event r,
+		 std::vector<std::unique_ptr<EventLabel> > &&prefix,
+		 std::vector<std::pair<Event, Event> > &&soPlacings)
+		: BackwardRSRevisit(RV_BRevRS, p, r, std::move(prefix), std::move(soPlacings)) {}
+	BackwardRSRevisit(Event p, Event r)
+		: BackwardRSRevisit(p, r, {}, {}) {}
+	BackwardRSRevisit(const SendLabel *sLab, const ReceiveLabel *rLab)
+		: BackwardRSRevisit(sLab->getPos(), rLab->getPos()) {}
+
+	/* Returns (releases) the prefix of the revisiting event */
+	std::vector<std::unique_ptr<EventLabel> > &&getPrefixRel() {
+		return std::move(prefix);
+	}
+
+	/* Returns (but does not release) the prefix of the revisiting event */
+	const std::vector<std::unique_ptr<EventLabel> > &getPrefixNoRel() const {
+		return prefix;
+	}
+
+	/* Returns (releases) the SO placing in the prefix */
+	std::vector<std::pair<Event, Event> > &&getSOPlacingsRel() {
+		return std::move(soPlacings);
+	}
+
+	static bool classof(const Revisit *item) {
+		return item->getKind() == RV_BRevRS;
+	}
+
+private:
+	std::vector<std::unique_ptr<EventLabel> >  prefix;
+	std::vector<std::pair<Event, Event> >  soPlacings;
+};
+
+/*
+ * SendRevisit class - Represents an alternative SO position for a send
+ * (Used by MPSC driver to track MO )
+ */
+class SendRevisit : public Revisit {
+
+protected:
+	SendRevisit(Kind k, Event p, int moPos) : Revisit(k, p), soPos(soPos) {}
+
+public:
+	SendRevisit(Event p, int soPos) : Revisit(RV_SO, p), soPos(soPos) {}
+
+	/* Returns the new SO position of the send event for which
+	 * we are exploring alternative exploration options */
+	int getSOPos() const { return soPos; }
+
+	static bool classof(const Revisit *item) {
+		return item->getKind() == RV_SO;
+	}
+
+private:
+	int soPos;
 };
 
 

@@ -266,8 +266,8 @@ void MPSCDriver::updateLabelViews(EventLabel *lab, const EventDeps *deps) /* dep
 		ERROR("RCU primitives can only be used with -lkmm!\n");
 		break;
 	case EventLabel::EL_ChannelOpen:
-	case EventLabel::EL_ChannelReceive:
-	case EventLabel::EL_ChannelSend:
+	case EventLabel::EL_Receive:
+	case EventLabel::EL_Send:
 		calcBasicViews(lab);
 		break;
 	default:
