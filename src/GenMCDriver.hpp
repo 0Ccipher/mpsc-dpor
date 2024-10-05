@@ -591,6 +591,7 @@ private:
 	/* Removes rfs from "rfs" until a consistent option for rLab is found,
 	 * if that is dictated by the CLI options */
 	bool ensureConsistentRf(const ReadLabel *rLab, std::vector<Event> &rfs);
+	bool ensureConsistentRf(const ReceiveLabel *rLab, std::vector<Event> &rfs);
 
 	/* Checks whether the addition of WLAB creates an atomicity violation.
 	 * If so, returns false and moots the execution if possible. */
@@ -741,6 +742,8 @@ private:
 	/* Returns an approximation of consistent rfs for RLAB.
 	 * The rfs are ordered according to CO */
 	virtual std::vector<Event> getRfsApproximation(const ReadLabel *rLab);
+
+	virtual std::vector<Event> getRfsApproximation(const ReceiveLabel *rLab);
 
 	/* Returns an approximation of the reads that SLAB can revisit.
 	 * The reads are ordered in reverse-addition order */

@@ -42,6 +42,7 @@ enum class BlockageType {
 	Cons,
 	Error,
 	User,
+	NotEnabledReceive,
 };
 
 /* Pers: Journaling mount options */

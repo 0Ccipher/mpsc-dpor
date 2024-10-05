@@ -162,6 +162,8 @@ public:
 	 * so that the relation managing objects are also informed */
 	const ReadLabel *addReadLabelToGraph(std::unique_ptr<ReadLabel> lab,
 					     Event rf = Event::getBottom());
+	const ReceiveLabel *addReceiveLabelToGraph(std::unique_ptr<ReceiveLabel> lab,
+					     Event rf = Event::getBottom());
 	const WriteLabel *addWriteLabelToGraph(std::unique_ptr<WriteLabel> lab,
 					       int offsetMO = -1);
 	const WriteLabel *addWriteLabelToGraph(std::unique_ptr<WriteLabel> lab,
@@ -615,6 +617,7 @@ public:
 	void trackCoherenceAtLoc(SAddr addr);
 	void trackSendOrderAtCh(Channel ch);
 	std::vector<Event> getCoherentStores(SAddr addr, Event pos);
+	std::vector<Event> getCoherentSends(Channel ch, Event pos);
 	std::pair<int, int> getCoherentPlacings(SAddr addr, Event pos, bool isRMW);
 	std::pair<int, int> getCoherentPlacings(Channel ch, Event pos);
 	std::vector<Event> getCoherentRevisits(const WriteLabel *wLab);

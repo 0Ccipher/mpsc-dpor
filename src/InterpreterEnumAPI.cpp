@@ -139,6 +139,9 @@ llvm::raw_ostream& operator<<(llvm::raw_ostream& s, const BlockageType &b)
 	case BlockageType::User:
 		s <<  "user";
 		break;
+	case BlockageType::NotEnabledReceive:
+		s <<  "Receive Not Enabled";
+		break;
 	default:
 		PRINT_BUGREPORT_INFO_ONCE("print-blockage-type",
 					  "Cannot print blockage type");

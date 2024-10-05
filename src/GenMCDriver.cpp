@@ -865,6 +865,8 @@ SVal GenMCDriver::getRecReadRetValue(const ReadLabel *rLab)
 	return getWriteValue(rf, rLab->getAddr(), rLab->getAccess());
 }
 
+
+
 CheckConsType GenMCDriver::getCheckConsType(ProgramPoint p) const
 {
 	/* Always check consistency on error, or at user-specified points.
@@ -1429,6 +1431,27 @@ bool GenMCDriver::ensureConsistentRf(const ReadLabel *rLab, std::vector<Event> &
 	return true;
 }
 
+bool GenMCDriver::ensureConsistentRf(const ReceiveLabel *rLab, std::vector<Event> &rfs)
+{
+	bool found = false;
+	while (!found) {
+		found = true;
+		changeRf(rLab->getPos(), rfs.back());
+		if (!isConsistent(ProgramPoint::step)) {
+			found = false;
+			rfs.erase(rfs.end() - 1);
+			BUG_ON(!getConf()->LAPOR && rfs.empty());
+			if (rfs.empty())
+				break;
+		}
+	}
+
+	if (!found) {
+		return false;
+	}
+	return true;
+}
+
 bool GenMCDriver::ensureConsistentStore(const WriteLabel *wLab)
 {
 	if (!checkAtomicity(wLab) || !isConsistent(ProgramPoint::step)) {
@@ -1690,6 +1713,12 @@ std::vector<Event> GenMCDriver::getRfsApproximation(const ReadLabel *lab)
 	return rfs;
 }
 
+std::vector<Event> GenMCDriver::getRfsApproximation(const ReceiveLabel *lab)
+{
+	auto rfs = getGraph().getCoherentSends(lab->getChannel(), lab->getPos());
+	return rfs;
+}
+
 void GenMCDriver::filterConfirmingRfs(const ReadLabel *lab, std::vector<Event> &stores)
 {
 	auto &g = getGraph();
@@ -1808,74 +1837,56 @@ int GenMCDriver::visitReceive(std::unique_ptr<ReceiveLabel> rLab, const EventDep
 	auto *EE = getEE();
 	auto &thr = EE->getCurThr();
 
-	// if (inRecoveryMode())
-	// 	return getRecReadRetValue(rLab.get());
+	if (isExecutionDrivenByGraph()){
+		/* Check whether we should block the thread due to not-enabled receive*/
+		if (rLab->getRf().isBottom()) {
+			BUG_ON(!inReplay());
+			thr.block(BlockageType::NotEnabledReceive);
+		}
+		return 1;
+	}
 
-	// if (isExecutionDrivenByGraph())
-	// 	return getReadRetValueAndMaybeBlock(llvm::dyn_cast<ReadLabel>(g.getEventLabel(rLab->getPos())));
+	/* Check whether the channel is valid. */
+	g.trackSendOrderAtCh(rLab->getChannel());
 
-	// /* First, we have to check whether the access is valid. This has to
-	//  * happen here because we may query the interpreter for this location's
-	//  * value in order to determine whether this load is going to be an RMW.
-	//  * Coherence needs to be tracked before validity is established, as
-	//  * consistency checks may be triggered if the access is invalid */
-	// g.trackCoherenceAtLoc(rLab->getAddr());
+	updateLabelViews(rLab.get(), deps);
+	auto *lab = g.addReceiveLabelToGraph(std::move(rLab));
 
-	// rLab->setAnnot(EE->getCurrentAnnotConcretized());
-	// updateLabelViews(rLab.get(), deps);
-	// auto *lab = g.addReadLabelToGraph(std::move(rLab));
 
-	// if (!isAccessValid(lab)) {
-	// 	visitError(lab->getPos(), Status::VS_AccessNonMalloc);
-	// 	return SVal(0); /* Return some value; this execution will be blocked */
-	// }
+	/* Get an approximation of the sends this receive can read-from */
+	auto stores = getRfsApproximation(lab);
+	BUG_ON(stores.empty());
 
-	// /* Get an approximation of the stores we can read from */
-	// auto stores = getRfsApproximation(lab);
-	// BUG_ON(stores.empty());
+	/*add an appropriate label witha a rf */
+	changeRf(lab->getPos(), stores.back());
 
-	// /* Try to minimize the number of rfs */
-	// filterOptimizeRfs(lab, stores);
-
-	// /* ... add an appropriate label with a random rf */
-	// changeRf(lab->getPos(), stores.back());
-
-	// /* ... and make sure that the rf we end up with is consistent */
-	// if (!ensureConsistentRf(lab, stores))
-	// 	return SVal(0);
+	/* ... and make sure that the rf we end up with is consistent */
+	if (!ensureConsistentRf(lab, stores)){
+		/*If all rfs are inconsistent- we need to block this thread
+		due to NotEnabledReceive*/
+		BUG_ON(!inReplay());
+		thr.block(BlockageType::NotEnabledReceive);
+		return 0;
+	}
 
 	// GENMC_DEBUG(
 	// 	if (getConf()->vLevel >= VerbosityLevel::V3) {
-	// 		llvm::dbgs() << "--- Added load " << lab->getPos() << "\n";
+	// 		llvm::dbgs() << "--- Added Receive " << lab->getPos() << "\n";
 	// 		printGraph();
 	// 	}
 	// );
 
-	// /* Check whether the load forces us to reconsider some existing event */
-	// checkReconsiderFaiSpinloop(lab);
+	/*-TODO--We need to consider the other choices for the thread is blocked 
+	due to notenabled receive */
+	// if (isRescheduledReceive(lab->getPos()))
+	// 	setRescheduledReceive(Event::getInitializer());
 
-	// /* Check for races and reading from uninitialized memory */
-	// checkForDataRaces(lab);
-	// if (llvm::isa<LockCasReadLabel>(lab))
-	// 	checkLockValidity(lab, stores);
-	// if (llvm::isa<BIncFaiReadLabel>(lab))
-	// 	checkBIncValidity(lab, stores);
-
-	// if (isRescheduledRead(lab->getPos()) && !llvm::isa<LockCasReadLabel>(lab))
-	// 	setRescheduledRead(Event::getInitializer());
-
-	// /* If this is the last part of barrier_wait() check whether we should block */
-	// auto retVal = getWriteValue(stores.back(), lab->getAddr(), lab->getAccess());
-	// if (llvm::isa<BWaitReadLabel>(lab) &&
-	//    retVal != getBarrierInitValue(lab->getAddr(), lab->getAccess()))
-	// 	visitBlock(BlockLabel::create(lab->getPos().next(), BlockageType::Barrier));
-
-	// /* Push all the other alternatives choices to the Stack (many maximals for wb) */
-	// std::for_each(stores.begin(), stores.end() - 1, [&](const Event &s){
-	// 	auto status = llvm::isa<MOCalculator>(g.getCoherenceCalculator()) ? false :
-	// 		isCoMaximal(lab->getAddr(), s, true); /* MO messes with the status */
-	// 	addToWorklist(std::make_unique<ForwardRevisit>(lab->getPos(), s, status));
-	// });
+	/* Remember the other alternatives rf choices for the receive*/
+	std::for_each(stores.begin(), stores.end() - 1, [&](const Event &s){
+		auto status = llvm::isa<SOCalculator>(g.getSOCalculator()) ? false :
+			isSOMaximal(lab->getChannel(), s, true); /* MO messes with the status */
+		addToWorklist(std::make_unique<ForwardRecvRevisit>(lab->getPos(), s, status));
+	});
 	return 0;
 }
 
@@ -1916,6 +1927,8 @@ void GenMCDriver::visitSend(std::unique_ptr<SendLabel> sLab, const EventDeps *de
 	/* If the graph is not consistent stop the exploration */
 	bool cons = true;
 	if (!isConsistent(ProgramPoint::step)) {
+		/*Check if thread should be blocked due to notenabled send
+		in case of boundedChannel-TODO*/
 		getEE()->block(BlockageType::Cons);
 		cons = false;
 	}

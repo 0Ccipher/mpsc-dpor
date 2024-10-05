@@ -451,6 +451,17 @@ const ReadLabel *ExecutionGraph::addReadLabelToGraph(std::unique_ptr<ReadLabel> 
 	return static_cast<const ReadLabel *>(addOtherLabelToGraph(std::move(lab)));
 }
 
+const ReceiveLabel *ExecutionGraph::addReceiveLabelToGraph(std::unique_ptr<ReceiveLabel> lab,
+						     Event rf /* = BOTTOM */)
+{
+	if (!lab->getRf().isBottom()) {
+		if (auto *sLab = llvm::dyn_cast<SendLabel>(getEventLabel(lab->getRf())))
+			sLab->addReader(lab->getPos());
+	}
+
+	return static_cast<const ReceiveLabel *>(addOtherLabelToGraph(std::move(lab)));
+}
+
 const WriteLabel *ExecutionGraph::addWriteLabelToGraph(std::unique_ptr<WriteLabel> lab,
 						       int offsetMO /* = -1 */)
 {
@@ -929,6 +940,12 @@ std::vector<Event>
 ExecutionGraph::getCoherentStores(SAddr addr, Event pos)
 {
 	return getCoherenceCalculator()->getCoherentStores(addr, pos);
+}
+
+std::vector<Event>
+ExecutionGraph::getCoherentSends(Channel ch, Event pos)
+{
+	return getSOCalculator()->getCoherentSends(ch, pos);
 }
 
 std::vector<Event>
