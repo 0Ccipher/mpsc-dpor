@@ -1436,7 +1436,7 @@ bool GenMCDriver::ensureConsistentRf(const ReceiveLabel *rLab, std::vector<Event
 	bool found = false;
 	while (!found) {
 		found = true;
-		changeRf(rLab->getPos(), rfs.back());
+		changeRf(rLab->getChannel(),rLab->getPos(), rfs.back());
 		if (!isConsistent(ProgramPoint::step)) {
 			found = false;
 			rfs.erase(rfs.end() - 1);
@@ -1854,14 +1854,14 @@ int GenMCDriver::visitReceive(std::unique_ptr<ReceiveLabel> rLab, const EventDep
 
 
 	/* Get an approximation of the sends this receive can read-from */
-	auto stores = getRfsApproximation(lab);
-	BUG_ON(stores.empty());
+	auto sends = getRfsApproximation(lab);
+	BUG_ON(sends.empty());
 
-	/*add an appropriate label witha a rf */
-	changeRf(lab->getPos(), stores.back());
+	/* add an appropriate label with a rf */
+	changeRf(lab->getChannel(), lab->getPos(), sends.back());
 
 	/* ... and make sure that the rf we end up with is consistent */
-	if (!ensureConsistentRf(lab, stores)){
+	if (!ensureConsistentRf(lab, sends)){
 		/*If all rfs are inconsistent- we need to block this thread
 		due to NotEnabledReceive*/
 		BUG_ON(!inReplay());
@@ -1876,13 +1876,13 @@ int GenMCDriver::visitReceive(std::unique_ptr<ReceiveLabel> rLab, const EventDep
 	// 	}
 	// );
 
-	/*-TODO--We need to consider the other choices for the thread is blocked 
+	/*-TODO--PostPonedRFs send We need to consider the other choices for the thread is blocked 
 	due to notenabled receive */
 	// if (isRescheduledReceive(lab->getPos()))
 	// 	setRescheduledReceive(Event::getInitializer());
 
 	/* Remember the other alternatives rf choices for the receive*/
-	std::for_each(stores.begin(), stores.end() - 1, [&](const Event &s){
+	std::for_each(sends.begin(), sends.end() - 1, [&](const Event &s){
 		auto status = llvm::isa<SOCalculator>(g.getSOCalculator()) ? false :
 			isSOMaximal(lab->getChannel(), s, true); /* MO messes with the status */
 		addToWorklist(std::make_unique<ForwardRecvRevisit>(lab->getPos(), s, status));

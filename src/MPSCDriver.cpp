@@ -69,6 +69,25 @@ void MPSCDriver::calcReadViews(ReadLabel *lab)
 	lab->setPorfView(std::move(porf));
 }
 
+void MPSCDriver::calcReceiveViews(ReceiveLabel *lab)
+{
+	const auto &g = getGraph();
+	View hb = calcBasicHbView(lab->getPos());
+	View porf = calcBasicPorfView(lab->getPos());
+
+	if (!lab->getRf().isBottom()) {
+		const auto *rfLab = g.getEventLabel(lab->getRf());
+		porf.update(rfLab->getPorfView());
+		/*Update the HBview according the rf*/
+		if (auto *sLab = llvm::dyn_cast<SendLabel>(rfLab))
+			hb.update(sLab->getMsgView());
+		
+	}
+
+	lab->setHbView(std::move(hb));
+	lab->setPorfView(std::move(porf));
+}
+
 void MPSCDriver::calcWriteViews(WriteLabel *lab)
 {
 	calcBasicViews(lab);
@@ -76,6 +95,12 @@ void MPSCDriver::calcWriteViews(WriteLabel *lab)
 		calcRMWWriteMsgView(lab);
 	else
 		calcWriteMsgView(lab);
+}
+
+void MPSCDriver::calcSendViews(SendLabel *lab)
+{
+	calcBasicViews(lab);
+	calcSendMsgView(lab);
 }
 
 void MPSCDriver::calcWriteMsgView(WriteLabel *lab)
@@ -91,6 +116,15 @@ void MPSCDriver::calcWriteMsgView(WriteLabel *lab)
 	else if (lab->isAtMostAcquire())
 		msg = g.getEventLabel(g.getLastThreadReleaseAtLoc(lab->getPos(),
 								  lab->getAddr()))->getHbView();
+	lab->setMsgView(std::move(msg));
+}
+
+void MPSCDriver::calcSendMsgView(SendLabel *lab)
+{
+	const auto &g = getGraph();
+	View msg;
+	/*msgView is HBView of this send*/
+	msg = lab->getHbView();
 	lab->setMsgView(std::move(msg));
 }
 
@@ -266,9 +300,13 @@ void MPSCDriver::updateLabelViews(EventLabel *lab, const EventDeps *deps) /* dep
 		ERROR("RCU primitives can only be used with -lkmm!\n");
 		break;
 	case EventLabel::EL_ChannelOpen:
-	case EventLabel::EL_Receive:
-	case EventLabel::EL_Send:
 		calcBasicViews(lab);
+		break;
+	case EventLabel::EL_Receive:
+		calcReceiveViews(llvm::dyn_cast<ReceiveLabel>(lab));
+		break;
+	case EventLabel::EL_Send:
+		calcSendViews(llvm::dyn_cast<SendLabel>(lab));
 		break;
 	default:
 		BUG();
@@ -374,6 +412,17 @@ void MPSCDriver::changeRf(Event read, Event store)
 	if (getConf()->persevere && llvm::isa<DskReadLabel>(rLab))
 		g.getPersChecker()->calcDskMemAccessPbView(rLab);
 	return;
+}
+
+void MPSCDriver::changeRf(Channel ch , Event receive, Event send)
+{
+	auto &g = getGraph();
+	/* Change the reads-from relation in the graph */
+	g.changeRf(ch, receive, send);
+
+	/* And update the views of the load */
+	auto *rLab = static_cast<ReceiveLabel *>(g.getEventLabel(receive));
+	calcReceiveViews(rLab);
 }
 
 void MPSCDriver::updateStart(Event create, Event start)

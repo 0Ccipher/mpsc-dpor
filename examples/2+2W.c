@@ -19,7 +19,7 @@ void *thread_1(void *unused)
 	atomic_store_explicit(&x, 1, memory_order_release);
 	atomic_store_explicit(&y, 2, memory_order_release);
 	chsend(1,2);
-	// chrecv(1);
+	chrecv(1);
 	return NULL;
 }
 

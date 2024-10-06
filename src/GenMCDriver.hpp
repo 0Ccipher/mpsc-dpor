@@ -752,6 +752,8 @@ private:
 	/* Changes the reads-from edge for the specified label.
 	 * This effectively changes the label, hence this method is virtual */
 	virtual void changeRf(Event read, Event store) = 0;
+	/*MPSCDriver needs it*/
+	virtual void changeRf(Channel ch , Event receive, Event send) {};
 
 	/* Synchronizes thread begins with thread create events. */
 	virtual void updateStart(Event create, Event begin) = 0;

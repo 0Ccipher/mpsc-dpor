@@ -105,6 +105,7 @@ Event ExecutionGraph::getLastThreadReleaseAtLoc(Event upperLimit, SAddr addr) co
 			if (wLab->isAtLeastRelease() && wLab->getAddr() == addr)
 				return Event(upperLimit.thread, i);
 		}
+		/*SendLabels needs to included in case of*/
 	}
 	return Event(upperLimit.thread, 0);
 }
@@ -1215,8 +1216,6 @@ bool ExecutionGraph::isHbOptRfBeforeInView(const Event e, const Event write,
 bool ExecutionGraph::isWriteRfBefore(Event a, Event b) const
 {
 	auto &before = getEventLabel(b)->getHbView();
-	WARN("11 ("+std::to_string(a.thread) +","+std::to_string(a.index)+")\n");
-	WARN("21 ("+std::to_string(b.thread) +","+std::to_string(b.index)+")\n");
 	if (before.contains(a))
 		return true;
 
@@ -1317,7 +1316,6 @@ bool ExecutionGraph::revisitModifiesGraph(const BackwardRevisit &r) const
 void ExecutionGraph::changeRf(Event read, Event store)
 {
 	setFPStatus(FS_Stale);
-
 	/* First, we set the new reads-from edge */
 	ReadLabel *rLab = llvm::dyn_cast<ReadLabel>(getEventLabel(read));
 	BUG_ON(!rLab);
@@ -1346,6 +1344,43 @@ void ExecutionGraph::changeRf(Event read, Event store)
 	auto *rfLab = getEventLabel(store);
 	if (auto *wLab = llvm::dyn_cast<WriteLabel>(rfLab))
 		wLab->addReader(rLab->getPos());
+}
+
+void ExecutionGraph::changeRf(Channel ch, Event receive, Event send)
+{
+	setFPStatus(FS_Stale);
+	/* First, we set the new reads-from edge */
+	ReceiveLabel *rLab = llvm::dyn_cast<ReceiveLabel>(getEventLabel(receive));
+	BUG_ON(!rLab);
+	Event oldRf = rLab->getRf();
+	rLab->setRf(send);
+
+	/*
+	 * Now, we need to delete the receive as the receiver of oldRf.
+	 * For that we need to check:
+	 *     1) That the old send it was reading-from still exists
+	 *     2) That oldRf has not been deleted (and a different event is
+	 *        now in its place, perhaps after the restoration of some prefix
+	 *        during a revisit)
+	 *     3) That oldRf is not the initializer */
+	if (oldRf.index > 0 && oldRf.index < (int) getThreadSize(oldRf.thread)) {
+		auto *labRef = getEventLabel(oldRf);
+		if (auto *oldLab = llvm::dyn_cast<SendLabel>(labRef))
+			if(oldLab->getReader()==receive)
+				oldLab->removeReader();
+	}
+
+	/* If this read is now reading from bottom, nothing else to do */
+	if (send.isBottom())
+		return;
+
+	/* Otherwise, add it as the send's receiver 
+	Need to ensure that there is no other receive event reading-from this send 
+	before addig this receive.*/
+	auto *rfLab = getEventLabel(send);
+	if (auto *sLab = llvm::dyn_cast<SendLabel>(rfLab))
+		if(sLab->getReader().isBottom())
+			sLab->addReader(rLab->getPos());
 }
 
 bool ExecutionGraph::updateJoin(Event join, Event childLast)

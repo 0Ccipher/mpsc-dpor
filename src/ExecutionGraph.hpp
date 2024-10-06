@@ -626,6 +626,7 @@ public:
 	/* Graph modification methods */
 
 	void changeRf(Event read, Event store);
+	void changeRf(Channel ch, Event receive, Event send);
 	void changeStoreOffset(SAddr addr, Event s, int newOffset);
 	void changeSendOffset(Channel ch, Event s, int newOffset);
 	void resetJoin(Event join);

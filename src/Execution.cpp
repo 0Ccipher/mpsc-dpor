@@ -3144,7 +3144,7 @@ void Interpreter::callChannelSend(Function *F, const std::vector<GenericValue> &
 	GenericValue secondArgValue = ArgVals[1];
 	int val = ArgVals[1].IntVal.getLimitedValue();
 	// WARN("Channel Send : ch"+std::to_string(chid) +"-> "+std::to_string(val) + "\n");
-	driver->visitSend(SendLabel::create(AtomicOrdering::NotAtomic, nextPos(),
+	driver->visitSend(SendLabel::create(AtomicOrdering::SequentiallyConsistent, nextPos(),
 						      chid, val), &*specialDeps);
 
 	return;

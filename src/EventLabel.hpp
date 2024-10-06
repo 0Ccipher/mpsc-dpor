@@ -732,6 +732,10 @@ public:
 		return std::make_unique<SendLabel>(*this);
 	}
 
+	/* Getter/setter for a msgview  */
+	const View& getMsgView() const { return msgView; }
+	void setMsgView(View &&v) { msgView = std::move(v); }
+
 	static bool classof(const EventLabel *lab) { return classofKind(lab->getKind()); }
 	static bool classofKind(EventLabelKind k) {
 		return k == EL_Send;
@@ -747,6 +751,9 @@ private:
 	void removeReader() {
 		receiver = Event::getBottom();
 	}
+
+	/* msgView for release sequence*/
+	View msgView;
 
 	/* The value written by this label */
 	int value;
