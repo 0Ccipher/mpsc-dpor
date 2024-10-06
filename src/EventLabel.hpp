@@ -752,7 +752,7 @@ private:
 	int value;
 
 	/* Receive Event reading from this send */
-	Event receiver;
+	Event receiver = Event::getBottom();
 
 };
 

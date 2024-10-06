@@ -54,7 +54,6 @@ std::pair<int, int>
 SOCalculator::getPossiblePlacings(Channel ch, Event send)
 {
 	const auto &g = getGraph();
-
 	auto rangeBegin = splitChSOBefore(ch, send);
 	auto rangeEnd = getSendsToCh(ch).size();
 	return std::make_pair(rangeBegin, rangeEnd);

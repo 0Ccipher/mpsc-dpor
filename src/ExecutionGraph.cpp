@@ -1215,6 +1215,8 @@ bool ExecutionGraph::isHbOptRfBeforeInView(const Event e, const Event write,
 bool ExecutionGraph::isWriteRfBefore(Event a, Event b) const
 {
 	auto &before = getEventLabel(b)->getHbView();
+	WARN("11 ("+std::to_string(a.thread) +","+std::to_string(a.index)+")\n");
+	WARN("21 ("+std::to_string(b.thread) +","+std::to_string(b.index)+")\n");
 	if (before.contains(a))
 		return true;
 

@@ -1892,7 +1892,8 @@ int GenMCDriver::visitReceive(std::unique_ptr<ReceiveLabel> rLab, const EventDep
 
 void GenMCDriver::visitSend(std::unique_ptr<SendLabel> sLab, const EventDeps *deps)
 {
-	WARN("Channel Send : ch"+std::to_string(sLab->getChannel()) +"-> "+std::to_string(sLab->getVal()) + "\n");
+	WARN("Channel Send : ch"+std::to_string(sLab->getChannel()) +"-> "+std::to_string(sLab->getVal()) 
+			+ " ("+std::to_string(sLab->getPos().thread) +","+std::to_string(sLab->getPos().index)+")\n");
 	if (isExecutionDrivenByGraph())
 		return;
 
@@ -3581,6 +3582,23 @@ void GenMCDriver::printGraph(bool printMetadata /* false */, llvm::raw_ostream &
 				s << getVarName(wLab->getAddr()) << ": [ ";
 				for (const auto &w : stores(g, locIt->first))
 					s << w << " ";
+				s << "]\n";
+			}
+	}
+	/* SO: Print SO information */
+	header = false;
+	if (auto *socal = llvm::dyn_cast<SOCalculator>(g.getSOCalculator())) {
+		for (auto chIt = socal->begin(), chE = socal->end(); chIt != chE; ++chIt)
+			/* Skip empty and single-store locations */
+			if (socal->hasMoreThanOneSend(chIt->first)) {
+				if (!header) {
+					s << "SendOrder:\n";
+					header = true;
+				}
+				auto *sLab = g.getSendLabel(*socal->send_begin(chIt->first));
+				s << "ch"+std::to_string(sLab->getChannel()) << ": [ ";
+				for (const auto &se : sends(g, chIt->first))
+					s << se << " ";
 				s << "]\n";
 			}
 	}
